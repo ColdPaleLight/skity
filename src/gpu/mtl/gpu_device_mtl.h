@@ -22,6 +22,8 @@ class GPUDeviceMTL : public GPUDevice {
 
   bool CanUseMSAA() override;
 
+  bool CanUseInstancedRendering() override;
+
   uint32_t GetBufferAlignment() override;
 
   uint32_t GetMaxTextureSize() override;

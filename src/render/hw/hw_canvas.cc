@@ -14,6 +14,7 @@
 #include "src/effect/image_filter_base.hpp"
 #include "src/gpu/gpu_surface_impl.hpp"
 #include "src/render/canvas_state.hpp"
+#include "src/render/hw/draw/hw_dynamic_oval_draw.hpp"
 #include "src/render/hw/draw/hw_dynamic_path_clip.hpp"
 #include "src/render/hw/draw/hw_dynamic_path_draw.hpp"
 #include "src/render/hw/filters/hw_filters.hpp"
@@ -365,18 +366,33 @@ void HWCanvas::DrawPathInternal(const Path& path, const Paint& paint,
   };
 
   if (need_fill) {
-    Paint work_paint(paint);
-    work_paint.SetStyle(Paint::kFill_Style);
-    work_paint.SetAntiAlias(need_contour_aa);
-    Path effect_path;
-    const Path* dst = &path;
+    if (path.is_circle) {
+      HWDraw* draw = arena_allocator_->Make<HWDynamicOvalDraw>(
+          transform, path.radius, path.center, paint);
+      if (draw == nullptr) {
+        return;
+      }
 
-    if (paint.GetPathEffect() && paint.GetPathEffect()->FilterPath(
-                                     &effect_path, path, false, work_paint)) {
-      dst = &effect_path;
+      draw->SetSampleCount(GetCanvasSampleCount());
+      auto bounds =
+          false ? paint.ComputeFastBounds(path.GetBounds()) : path.GetBounds();
+      SetupLayerSpaceBoundsForDraw(draw, bounds);
+      CurrentLayer()->AddDraw(draw);
+      return;
+    } else {
+      Paint work_paint(paint);
+      work_paint.SetStyle(Paint::kFill_Style);
+      work_paint.SetAntiAlias(need_contour_aa);
+      Path effect_path;
+      const Path* dst = &path;
+
+      if (paint.GetPathEffect() && paint.GetPathEffect()->FilterPath(
+                                       &effect_path, path, false, work_paint)) {
+        dst = &effect_path;
+      }
+
+      draw_op_handler(*dst, work_paint, false);
     }
-
-    draw_op_handler(*dst, work_paint, false);
   }
 
   if (need_stroke) {

@@ -544,6 +544,11 @@ class SKITY_API Path {
   mutable bool is_finite_ = true;
   mutable Rect bounds_;
   PathFillType fill_type_ = PathFillType::kWinding;
+
+ public:
+  bool is_circle = false;
+  Vec2 center;
+  float radius = 0;
 };
 
 }  // namespace skity

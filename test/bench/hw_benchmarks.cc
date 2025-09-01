@@ -22,7 +22,7 @@ namespace fs = std::filesystem;
 
 #define SKITY_BENCH_ALL_GPU_TYPES 0
 #define SKITY_BENCH_ALL_AA_TYPES 0
-#define SKITY_BENCH_WRITE_PNG 0
+#define SKITY_BENCH_WRITE_PNG 1
 
 fs::path kOutputDir;
 
@@ -189,29 +189,29 @@ BENCHMARK(BM_FillCircle)
     ->ArgNames({"gpu", "aa", "count", "radius"})
     ->Unit(benchmark::kMicrosecond);
 
-static void BM_StrokeCircle(benchmark::State& state) {
-  RunBenchmark(state, GetGPUBackendType(state.range(0)),
-               GetAAType(state.range(1)), [&state]() {
-                 auto result = std::make_shared<skity::DrawCircleBenchmark>(
-                     state.range(2), state.range(3), false);
-                 result->SetStroke(true);
-                 result->SetStrokeWidth(state.range(4));
-                 return result;
-               });
-}
+// static void BM_StrokeCircle(benchmark::State& state) {
+//   RunBenchmark(state, GetGPUBackendType(state.range(0)),
+//                GetAAType(state.range(1)), [&state]() {
+//                  auto result = std::make_shared<skity::DrawCircleBenchmark>(
+//                      state.range(2), state.range(3), false);
+//                  result->SetStroke(true);
+//                  result->SetStrokeWidth(state.range(4));
+//                  return result;
+//                });
+// }
 
-BENCHMARK(BM_StrokeCircle)
-    ->ArgsProduct({
-        // gpu backend type
-        GetGPUBackendTypes(),
-        // aa
-        GetAATypes(),
-        // count
-        {1, 10, 100, 1000, 10000},
-        // radius
-        {32, 256},
-        // stroke width
-        {10},
-    })
-    ->ArgNames({"gpu", "aa", "count", "radius", "stroke_width"})
-    ->Unit(benchmark::kMicrosecond);
+// BENCHMARK(BM_StrokeCircle)
+//     ->ArgsProduct({
+//         // gpu backend type
+//         GetGPUBackendTypes(),
+//         // aa
+//         GetAATypes(),
+//         // count
+//         {1, 10, 100, 1000, 10000},
+//         // radius
+//         {32, 256},
+//         // stroke width
+//         {10},
+//     })
+//     ->ArgNames({"gpu", "aa", "count", "radius", "stroke_width"})
+//     ->Unit(benchmark::kMicrosecond);

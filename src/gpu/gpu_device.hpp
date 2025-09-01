@@ -65,6 +65,13 @@ class GPUDevice {
    */
   virtual uint32_t GetMaxTextureSize() = 0;
 
+  /**
+   * Check if the device support instanced rendering
+   *
+   * @return true if support instanced rendering
+   */
+  virtual bool CanUseInstancedRendering() { return false; }
+
   std::shared_ptr<GPUShaderModule> CreateShaderModule(
       const GPUShaderModuleDescriptor& desc);
 };

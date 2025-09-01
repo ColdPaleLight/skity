@@ -27,9 +27,9 @@
 
 /// Open this macro to enable gl validation
 /// but it will cost more time on some driver
-// #ifndef GL_VALIDATION
-// #define GL_VALIDATION 1
-// #endif
+ #ifndef GL_VALIDATION
+ #define GL_VALIDATION 1
+ #endif
 
 #include "src/logging.hpp"
 
@@ -153,6 +153,8 @@ struct GLInterface {
   PFNGLGENSAMPLERSPROC fGenSamplers = nullptr;
   PFNGLDELETESAMPLERSPROC fDeleteSamplers = nullptr;
   PFNGLSAMPLERPARAMETERIPROC fSamplerParameteri = nullptr;
+  PFNGLVERTEXATTRIBDIVISORPROC fVertexAttribDivisor = nullptr;
+  PFNGLDRAWELEMENTSINSTANCEDPROC fDrawElementsInstanced = nullptr;
 
   PFNGLFRAMEBUFFERTEXTURE2DMULTISAMPLEEXTPROC
   fFramebufferTexture2DMultisampleEXT = nullptr;
@@ -176,8 +178,8 @@ struct GLInterface {
 template <class F, class Enable = void>
 struct GLFunctionDelegate;
 
-template <class F, class Enable = void>
-struct GLFunctionDelegate;
+//template <class F, class Enable = void>
+//struct GLFunctionDelegate;
 
 template <class R, class... A>
 struct GLFunctionDelegate<R (*)(A...),

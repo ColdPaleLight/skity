@@ -239,4 +239,6 @@ std::shared_ptr<GPUShaderFunction> GPUDeviceMTL::CreateShaderFunctionFromModule(
   return function;
 }
 
+bool GPUDeviceMTL::CanUseInstancedRendering() { return true; }
+
 }  // namespace skity

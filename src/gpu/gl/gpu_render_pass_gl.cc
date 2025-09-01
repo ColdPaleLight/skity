@@ -5,6 +5,7 @@
 #include "src/gpu/gl/gpu_render_pass_gl.hpp"
 
 #include "src/gpu/gl/formats_gl.h"
+#include "src/gpu/gl/gl_interface.hpp"
 #include "src/gpu/gl/gpu_buffer_gl.hpp"
 #include "src/gpu/gl/gpu_render_pipeline_gl.hpp"
 #include "src/gpu/gl/gpu_sampler_gl.hpp"
@@ -92,19 +93,35 @@ void GPURenderPassGL::EncodeCommands(std::optional<GPUViewport> viewport,
     // Set program
     GL_CALL(UseProgram, pipeline->GetProgramId());
 
-    BindBuffer(GL_ARRAY_BUFFER,
-               static_cast<GPUBufferGL*>(command->vertex_buffer.buffer)
-                   ->GetBufferId());
-
     // Set vertex
     for (auto& buffer_layout : pipeline->GetDescriptor().buffers) {
-      for (auto& attribute : buffer_layout.attributes) {
-        GL_CALL(EnableVertexAttribArray, attribute.shader_location);
-        GL_CALL(VertexAttribPointer, attribute.shader_location,
-                static_cast<uint32_t>(attribute.format), GL_FLOAT, GL_FALSE,
-                buffer_layout.array_stride,
-                reinterpret_cast<void*>(command->vertex_buffer.offset +
-                                        attribute.offset));
+      if (buffer_layout.step_mode == GPUVertexStepMode::kVertex) {
+        BindBuffer(GL_ARRAY_BUFFER,
+                   static_cast<GPUBufferGL*>(command->vertex_buffer.buffer)
+                       ->GetBufferId());
+
+        for (auto& attribute : buffer_layout.attributes) {
+          GL_CALL(EnableVertexAttribArray, attribute.shader_location);
+          GL_CALL(VertexAttribPointer, attribute.shader_location,
+                  static_cast<uint32_t>(attribute.format), GL_FLOAT, GL_FALSE,
+                  buffer_layout.array_stride,
+                  reinterpret_cast<void*>(command->vertex_buffer.offset +
+                                          attribute.offset));
+          GL_CALL(VertexAttribDivisor, attribute.shader_location, 0);
+        }
+      } else {
+        BindBuffer(GL_ARRAY_BUFFER,
+                   static_cast<GPUBufferGL*>(command->instance_buffer.buffer)
+                       ->GetBufferId());
+        for (auto& attribute : buffer_layout.attributes) {
+          GL_CALL(EnableVertexAttribArray, attribute.shader_location);
+          GL_CALL(VertexAttribPointer, attribute.shader_location,
+                  static_cast<uint32_t>(attribute.format), GL_FLOAT, GL_FALSE,
+                  buffer_layout.array_stride,
+                  reinterpret_cast<void*>(command->instance_buffer.offset +
+                                          attribute.offset));
+          GL_CALL(VertexAttribDivisor, attribute.shader_location, 1);
+        }
       }
     }
 
@@ -171,9 +188,17 @@ void GPURenderPassGL::EncodeCommands(std::optional<GPUViewport> viewport,
     BindBuffer(
         GL_ELEMENT_ARRAY_BUFFER,
         static_cast<GPUBufferGL*>(command->index_buffer.buffer)->GetBufferId());
-    // Draw elements
-    GL_CALL(DrawElements, GL_TRIANGLES, command->index_count, GL_UNSIGNED_INT,
-            reinterpret_cast<void*>(command->index_buffer.offset));
+    if (command->instance_buffer.buffer == nullptr) {
+      // Draw elements
+      GL_CALL(DrawElements, GL_TRIANGLES, command->index_count, GL_UNSIGNED_INT,
+              reinterpret_cast<void*>(command->index_buffer.offset));
+    } else {
+      // Draw elements
+      GL_CALL(DrawElementsInstanced, GL_TRIANGLES, command->index_count,
+              GL_UNSIGNED_INT,
+              reinterpret_cast<void*>(command->index_buffer.offset),
+              command->instance_count);
+    }
   }
 
   SetScissorBox(s.x, target_height - s.y - s.height, s.width, s.height);

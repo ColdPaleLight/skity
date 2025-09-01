@@ -970,6 +970,9 @@ Path& Path::AddCircle(float x, float y, float radius, Direction dir) {
     AddOval(Rect::MakeLTRB(x - radius, y - radius, x + radius, y + radius),
             dir);
   }
+  this->is_circle = true;
+  this->center = Vec2{x, y};
+  this->radius = radius;
 
   return *this;
 }

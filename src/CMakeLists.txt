@@ -315,6 +315,8 @@ if(${SKITY_HW_RENDERER})
     ${CMAKE_CURRENT_LIST_DIR}/render/hw/draw/fragment/wgsl_image_filter.hpp
     ${CMAKE_CURRENT_LIST_DIR}/render/hw/draw/fragment/wgsl_solid_color.cc
     ${CMAKE_CURRENT_LIST_DIR}/render/hw/draw/fragment/wgsl_solid_color.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/render/hw/draw/fragment/wgsl_oval_fragment.cc
+    ${CMAKE_CURRENT_LIST_DIR}/render/hw/draw/fragment/wgsl_oval_fragment.hpp
     ${CMAKE_CURRENT_LIST_DIR}/render/hw/draw/fragment/wgsl_stencil_fragment.cc
     ${CMAKE_CURRENT_LIST_DIR}/render/hw/draw/fragment/wgsl_stencil_fragment.hpp
     ${CMAKE_CURRENT_LIST_DIR}/render/hw/draw/fragment/wgsl_text_fragment.cc
@@ -329,6 +331,8 @@ if(${SKITY_HW_RENDERER})
     ${CMAKE_CURRENT_LIST_DIR}/render/hw/draw/geometry/wgsl_gradient_path.hpp
     ${CMAKE_CURRENT_LIST_DIR}/render/hw/draw/geometry/wgsl_path_geometry.cc
     ${CMAKE_CURRENT_LIST_DIR}/render/hw/draw/geometry/wgsl_path_geometry.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/render/hw/draw/geometry/wgsl_oval_geometry.cc
+    ${CMAKE_CURRENT_LIST_DIR}/render/hw/draw/geometry/wgsl_oval_geometry.hpp
     ${CMAKE_CURRENT_LIST_DIR}/render/hw/draw/geometry/wgsl_text_geometry.cc
     ${CMAKE_CURRENT_LIST_DIR}/render/hw/draw/geometry/wgsl_text_geometry.hpp
     ${CMAKE_CURRENT_LIST_DIR}/render/hw/draw/geometry/wgsl_texture_path.cc
@@ -341,6 +345,8 @@ if(${SKITY_HW_RENDERER})
     ${CMAKE_CURRENT_LIST_DIR}/render/hw/draw/hw_dynamic_path_clip.hpp
     ${CMAKE_CURRENT_LIST_DIR}/render/hw/draw/hw_dynamic_path_draw.cc
     ${CMAKE_CURRENT_LIST_DIR}/render/hw/draw/hw_dynamic_path_draw.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/render/hw/draw/hw_dynamic_oval_draw.cc
+    ${CMAKE_CURRENT_LIST_DIR}/render/hw/draw/hw_dynamic_oval_draw.hpp
     ${CMAKE_CURRENT_LIST_DIR}/render/hw/draw/hw_dynamic_text_draw.cc
     ${CMAKE_CURRENT_LIST_DIR}/render/hw/draw/hw_dynamic_text_draw.hpp
     ${CMAKE_CURRENT_LIST_DIR}/render/hw/draw/hw_wgsl_fragment.hpp

@@ -382,9 +382,12 @@ void Canvas::OnDrawCircle(float cx, float cy, float radius,
     radius = 0;
   }
 
-  Rect r;
-  r.SetLTRB(cx - radius, cy - radius, cx + radius, cy + radius);
-  this->DrawOval(r, paint);
+  // Rect r;
+  // r.SetLTRB(cx - radius, cy - radius, cx + radius, cy + radius);
+  // this->DrawOval(r, paint);
+  Path path;
+  path.AddCircle(cx, cy, radius);
+  this->OnDrawPath(path, paint);
 }
 
 void Canvas::OnDrawOval(Rect const &oval, Paint const &paint) {
