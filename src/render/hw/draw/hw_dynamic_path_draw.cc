@@ -12,6 +12,7 @@
 #include "src/render/hw/draw/fragment/wgsl_texture_fragment.hpp"
 #include "src/render/hw/draw/geometry/wgsl_gradient_path.hpp"
 #include "src/render/hw/draw/geometry/wgsl_path_geometry.hpp"
+#include "src/render/hw/draw/geometry/wgsl_tess_path_geometry.hpp"
 #include "src/render/hw/draw/geometry/wgsl_texture_path.hpp"
 #include "src/render/hw/draw/step/color_step.hpp"
 #include "src/render/hw/draw/step/stencil_step.hpp"
@@ -53,8 +54,9 @@ void HWDynamicPathDraw::OnGenerateDrawStep(ArrayList<HWDrawStep *, 2> &steps,
   if (!single_pass) {
     // need stencil step first
     steps.emplace_back(context->arena_allocator->Make<StencilStep>(
-        context->arena_allocator->Make<WGSLPathGeometry>(path_, paint_,
-                                                         is_stroke_, false),
+//        context->arena_allocator->Make<WGSLPathGeometry>(path_, paint_,
+//                                                         is_stroke_, false),
+        context->arena_allocator->Make<WGSLTessPathGeometry>(path_, paint_),
         context->arena_allocator->Make<WGSLStencilFragment>(),
         coverage == CoverageType::kNoZero));
   }
@@ -106,8 +108,9 @@ HWWGSLGeometry *HWDynamicPathDraw::GenGeometry(HWDrawContext *context,
     }
 
   } else {
-    return arena_allocator->Make<WGSLPathGeometry>(path_, paint_, is_stroke_,
-                                                   aa);
+    // return arena_allocator->Make<WGSLPathGeometry>(path_, paint_, is_stroke_,
+    //                                                aa);
+    return arena_allocator->Make<WGSLTessPathGeometry>(path_, paint_);
   }
 }
 

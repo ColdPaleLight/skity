@@ -366,20 +366,20 @@ void HWCanvas::DrawPathInternal(const Path& path, const Paint& paint,
   };
 
   if (need_fill) {
-    if (path.is_circle) {
-      HWDraw* draw = arena_allocator_->Make<HWDynamicOvalDraw>(
-          transform, path.radius, path.center, paint);
-      if (draw == nullptr) {
-        return;
-      }
-
-      draw->SetSampleCount(GetCanvasSampleCount());
-      auto bounds =
-          false ? paint.ComputeFastBounds(path.GetBounds()) : path.GetBounds();
-      SetupLayerSpaceBoundsForDraw(draw, bounds);
-      CurrentLayer()->AddDraw(draw);
-      return;
-    } else {
+//    if (path.is_circle) {
+//      HWDraw* draw = arena_allocator_->Make<HWDynamicOvalDraw>(
+//          transform, path.radius, path.center, paint);
+//      if (draw == nullptr) {
+//        return;
+//      }
+//
+//      draw->SetSampleCount(GetCanvasSampleCount());
+//      auto bounds =
+//          false ? paint.ComputeFastBounds(path.GetBounds()) : path.GetBounds();
+//      SetupLayerSpaceBoundsForDraw(draw, bounds);
+//      CurrentLayer()->AddDraw(draw);
+//      return;
+//    } else {
       Paint work_paint(paint);
       work_paint.SetStyle(Paint::kFill_Style);
       work_paint.SetAntiAlias(need_contour_aa);
@@ -392,7 +392,7 @@ void HWCanvas::DrawPathInternal(const Path& path, const Paint& paint,
       }
 
       draw_op_handler(*dst, work_paint, false);
-    }
+//    }
   }
 
   if (need_stroke) {

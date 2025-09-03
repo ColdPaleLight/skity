@@ -4,22 +4,34 @@
 
 #include "case/shape/shape_example.hpp"
 
+#include "skity/graphic/path.hpp"
+
 namespace skity::example::shape {
 
 void draw_shapes(skity::Canvas* canvas) {
   Paint paint;
-  paint.SetColor(Color_WHITE);
-  canvas->DrawPaint(paint);
+  // paint.SetColor(Color_WHITE);
+  // canvas->DrawPaint(paint);
 
-    paint.SetColor(Color_GREEN);
-    canvas->DrawRect(Rect::MakeLTRB(100, 100, 300, 300), paint);
-    paint.SetColor(Color_BLUE);
-  canvas->DrawCircle(200, 200, 100, paint);
-    
-    paint.SetColor(Color_GREEN);
-    canvas->DrawRect(Rect::MakeLTRB(250, 250, 350, 350), paint);
-    paint.SetColor(Color_BLUE);
-    canvas->DrawCircle(300, 300, 50, paint);
+  paint.SetColor(Color_GREEN);
+  Path path;
+  path.MoveTo(100, 100);
+//  path.LineTo(300, 100);
+//  path.LineTo(300, 300);
+//  path.LineTo(100, 300);
+
+//  path.Close();
+  
+  path.QuadTo(200, 0, 300, 100);
+  canvas->DrawPath(path, paint);
+  //   canvas->DrawRect(Rect::MakeLTRB(100, 100, 300, 300), paint);
+  //   paint.SetColor(Color_BLUE);
+  // canvas->DrawCircle(200, 200, 100, paint);
+
+  //   paint.SetColor(Color_GREEN);
+  //   canvas->DrawRect(Rect::MakeLTRB(250, 250, 350, 350), paint);
+  //   paint.SetColor(Color_BLUE);
+  //   canvas->DrawCircle(300, 300, 50, paint);
   // paint.SetStrokeWidth(20);
   // paint.SetStyle(Paint::kStroke_Style);
 
