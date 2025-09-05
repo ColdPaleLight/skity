@@ -2,11 +2,8 @@
 // Licensed under the Apache License Version 2.0 that can be found in the
 // LICENSE file in the root directory of this source tree.
 
-#include "src/render/hw/draw/geometry/wgsl_tess_path_geometry.hpp"
+#include "src/render/hw/draw/geometry/wgsl_tess_path_aa_geometry.hpp"
 
-#include <_types/_uint32_t.h>
-
-#include <algorithm>
 #include <cassert>
 #include <vector>
 
@@ -25,14 +22,11 @@ namespace skity {
 
 namespace {
 
-constexpr static float kPrecision = 4.0f;
-constexpr static int32_t kMaxNumSegmentsPerInstance = 8;
-
 std::vector<GPUVertexBufferLayout> InitVertexBufferLayout() {
   std::vector<GPUVertexBufferLayout> layout = {
       // vertex
       GPUVertexBufferLayout{
-          sizeof(float),
+          2 * sizeof(float),
           GPUVertexStepMode::kVertex,
           {
               GPUVertexAttribute{
@@ -40,37 +34,27 @@ std::vector<GPUVertexBufferLayout> InitVertexBufferLayout() {
                   0,
                   0,
               },
+              GPUVertexAttribute{
+                  GPUVertexFormat::kFloat32,
+                  sizeof(float),
+                  1,
+              },
           },
       },
       // instance
       GPUVertexBufferLayout{
-          12 * sizeof(float),
+          8 * sizeof(float),
           GPUVertexStepMode::kInstance,
           {
               GPUVertexAttribute{
                   GPUVertexFormat::kFloat32x4,
                   0,
-                  1,
+                  2,
               },
               GPUVertexAttribute{
                   GPUVertexFormat::kFloat32x4,
                   4 * sizeof(float),
-                  2,
-              },
-              GPUVertexAttribute{
-                  GPUVertexFormat::kFloat32x2,
-                  8 * sizeof(float),
                   3,
-              },
-              GPUVertexAttribute{
-                  GPUVertexFormat::kFloat32,
-                  10 * sizeof(float),
-                  4,
-              },
-              GPUVertexAttribute{
-                  GPUVertexFormat::kFloat32,
-                  11 * sizeof(float),
-                  5,
               },
           },
       },
@@ -82,17 +66,13 @@ std::vector<GPUVertexBufferLayout> InitVertexBufferLayout() {
 struct Instance {
   Vec4 p0p1;
   Vec4 p2p3;
-  Vec2 fan_center;
-  float index_offset;
-  float num_segments;
 };
 
-static_assert(sizeof(Instance) == 48);
+static_assert(sizeof(Instance) == 32);
 
-struct TessPathVisitor : public PathVisitor {
-  explicit TessPathVisitor(const Matrix& matrix)
-      : PathVisitor(false, matrix),
-        xform_(wangs_formula::VectorXform(matrix)) {}
+struct TessPathAAVisitor : public PathVisitor {
+  explicit TessPathAAVisitor(const Matrix& matrix)
+      : PathVisitor(false, matrix) {}
 
   void OnBeginPath() override {}
 
@@ -101,36 +81,13 @@ struct TessPathVisitor : public PathVisitor {
   void OnMoveTo(Vec2 const& p) override { fan_center = p; }
 
   void OnLineTo(Vec2 const& p0, Vec2 const& p1) override {
-    instances.push_back(
-        Instance{Vec4{p0, p0}, Vec4{p1, p1}, fan_center, 0.f, 1.f});
+    instances.push_back(Instance{Vec4{p0, p0}, Vec4{p1, p1}});
   }
 
   void OnQuadTo(Vec2 const& p0, Vec2 const& p1, Vec2 const& p2) override {
     auto ctr1 = (p0 + 2 * p1) / 3.f;
     auto ctr2 = (2 * p1 + p2) / 3.f;
-
-    arc_[0] = p0;
-    arc_[1] = p1;
-    arc_[2] = p2;
-    uint32_t num =
-        std::ceil(wangs_formula::Quadratic(kPrecision, arc_, xform_));
-    num = std::max(num, 1u);
-    uint32_t remain = num % kMaxNumSegmentsPerInstance;
-    uint32_t count = num / kMaxNumSegmentsPerInstance;
-
-    for (uint32_t i = 0; i < count; i++) {
-      instances.push_back(
-          Instance{Vec4{p0, ctr1}, Vec4{ctr2, p2}, fan_center,
-                   static_cast<float>(i * kMaxNumSegmentsPerInstance),
-                   static_cast<float>(num)});
-    }
-
-    if (remain > 0) {
-      instances.push_back(
-          Instance{Vec4{p0, ctr1}, Vec4{ctr2, p2}, fan_center,
-                   static_cast<float>(count * kMaxNumSegmentsPerInstance),
-                   static_cast<float>(num)});
-    }
+    instances.push_back(Instance{Vec4{p0, ctr1}, Vec4{ctr2, p2}});
   }
 
   void OnConicTo(Vec2 const& p1, Vec2 const& p2, Vec2 const& p3,
@@ -150,29 +107,7 @@ struct TessPathVisitor : public PathVisitor {
 
   void OnCubicTo(Vec2 const& p0, Vec2 const& p1, Vec2 const& p2,
                  Vec2 const& p3) override {
-    arc_[0] = p0;
-    arc_[1] = p1;
-    arc_[2] = p2;
-    arc_[3] = p3;
-    uint32_t num = std::ceil(wangs_formula::Cubic(kPrecision, arc_, xform_));
-    num = std::max(num, 1u);
-
-    uint32_t remain = num % kMaxNumSegmentsPerInstance;
-    uint32_t count = num / kMaxNumSegmentsPerInstance;
-
-    for (uint32_t i = 0; i < count; i++) {
-      instances.push_back(
-          Instance{Vec4{p0, p1}, Vec4{p2, p3}, fan_center,
-                   static_cast<float>(i * kMaxNumSegmentsPerInstance),
-                   static_cast<float>(num)});
-    }
-
-    if (remain > 0) {
-      instances.push_back(
-          Instance{Vec4{p0, p1}, Vec4{p2, p3}, fan_center,
-                   static_cast<float>(count * kMaxNumSegmentsPerInstance),
-                   static_cast<float>(num)});
-    }
+    instances.push_back(Instance{Vec4{p0, p1}, Vec4{p2, p3}});
   }
 
   void OnClose() override {}
@@ -182,64 +117,85 @@ struct TessPathVisitor : public PathVisitor {
  private:
   Vec2 fan_center = {};
   std::vector<Instance> instances;
-  wangs_formula::VectorXform xform_;
-  Vec2 arc_[4];
 };
 
 }  // namespace
 
-WGSLTessPathGeometry::WGSLTessPathGeometry(const Path& path, const Paint& paint)
+WGSLTessPathAAGeometry::WGSLTessPathAAGeometry(const Path& path,
+                                               const Paint& paint)
     : path_(path), paint_(paint), layout_(InitVertexBufferLayout()) {}
 
 const std::vector<GPUVertexBufferLayout>&
-WGSLTessPathGeometry::GetBufferLayout() const {
+WGSLTessPathAAGeometry::GetBufferLayout() const {
   return layout_;
 }
 
-std::string WGSLTessPathGeometry::GenSourceWGSL() const {
+std::string WGSLTessPathAAGeometry::GenSourceWGSL() const {
   std::string wgsl_code = CommonVertexWGSL();
 
   wgsl_code += R"(
+
+      fn get_vertex_position_with_offset(a_pos: vec2<f32>, cs: CommonSlot, offset: vec4<f32>) -> vec4<f32> {
+        var pos: vec4<f32> = cs.mvp * (cs.userTransform * vec4<f32>(a_pos, 0.0, 1.0) + offset);
+        return vec4<f32>(pos.x, pos.y, cs.extraInfo[0] * pos.w, pos.w);
+      }
       @group(0) @binding(0) var<uniform> common_slot: CommonSlot;
 
       struct VSInput {
           @location(0) index: f32,
-          @location(1) p0p1: vec4<f32>,
-          @location(2) p2p3: vec4<f32>,
-          @location(3) fan_center: vec2<f32>,
-          @location(4) index_offset: f32,
-          @location(5) num_segments: f32,
+          @location(1) offset: f32,
+          @location(2) p0p1: vec4<f32>,
+          @location(3) p2p3: vec4<f32>,
       };
 
       struct VSOutput {
           @builtin(position) pos: vec4<f32>,
+          @location(0)       v_pos_aa  :   f32,
       };
+
+
+      fn cubic_bezier_tangent(p0: vec4<f32>, p1: vec4<f32>, p2: vec4<f32>, p3: vec4<f32>, t: f32) -> vec4<f32> {
+         var u: f32 = 1.0 - t;
+         var tangent: vec4<f32> = 3.0 * u * u * (p1 - p0) +
+                                  6.0 * u * t * (p2 - p1) +
+                                  3.0 * t * t * (p3 - p2);
+         return tangent;
+      }
 
 
       @vertex
       fn vs_main(input: VSInput) -> VSOutput {
           var output: VSOutput;
           var pos: vec2<f32>;
-          var index: f32 = input.index + input.index_offset;
-          if input.index < 0.0 || index > input.num_segments {
-            pos = input.fan_center;
+
+          var t: f32 = input.index / 32.0;
+          var p0: vec2<f32> = input.p0p1.xy;
+          var p1: vec2<f32> = input.p0p1.zw;
+          var p2: vec2<f32> = input.p2p3.xy;
+          var p3: vec2<f32> = input.p2p3.zw;
+
+          var p01: vec2<f32> = mix(p0, p1, t);
+          var p12: vec2<f32> = mix(p1, p2, t);
+          var p23: vec2<f32> = mix(p2, p3, t);
+
+          var p012: vec2<f32> = mix(p01, p12, t);
+          var p123: vec2<f32> = mix(p12, p23, t);
+          pos = mix(p012, p123, t);
+
+          var tp0: vec4<f32> = common_slot.userTransform * vec4<f32>(p0, 0.0, 1.0);
+          var tp1: vec4<f32> = common_slot.userTransform * vec4<f32>(p1, 0.0, 1.0);
+          var tp2: vec4<f32> = common_slot.userTransform * vec4<f32>(p2, 0.0, 1.0);
+          var tp3: vec4<f32> = common_slot.userTransform * vec4<f32>(p3, 0.0, 1.0);
+
+          var tangent: vec4<f32> = normalize(cubic_bezier_tangent(tp0, tp1, tp2, tp3, t));
+          var norm: vec4<f32> = vec4<f32>(tangent.y, -tangent.x, tangent.z, tangent.w);
+          var offset: vec4<f32> = norm * input.offset;
+          output.pos = get_vertex_position_with_offset(pos.xy, common_slot, offset);
+          if input.offset == 0.0 {
+            output.v_pos_aa = 1.0;
           } else {
-            var t: f32 = index / input.num_segments;
-            var p0: vec2<f32> = input.p0p1.xy;
-            var p1: vec2<f32> = input.p0p1.zw;
-            var p2: vec2<f32> = input.p2p3.xy;
-            var p3: vec2<f32> = input.p2p3.zw;
-
-            var p01: vec2<f32> = mix(p0, p1, t);
-            var p12: vec2<f32> = mix(p1, p2, t);
-            var p23: vec2<f32> = mix(p2, p3, t);
-
-            var p012: vec2<f32> = mix(p01, p12, t);
-            var p123: vec2<f32> = mix(p12, p23, t);
-            pos = mix(p012, p123, t);
+            output.v_pos_aa = 0.0;
           }
-
-          output.pos = get_vertex_position(pos.xy, common_slot);
           return output;
       }
     )";
@@ -247,33 +203,32 @@ std::string WGSLTessPathGeometry::GenSourceWGSL() const {
   return wgsl_code;
 }
 
-std::string WGSLTessPathGeometry::GetShaderName() const {
-  std::string name = "CommonTessPathVertexWGSL";
+std::string WGSLTessPathAAGeometry::GetShaderName() const {
+  std::string name = "CommonTessPathAAVertexWGSL";
 
   return name;
 }
 
-const char* WGSLTessPathGeometry::GetEntryPoint() const { return "vs_main"; }
+const char* WGSLTessPathAAGeometry::GetEntryPoint() const { return "vs_main"; }
 
-namespace {}
-
-void WGSLTessPathGeometry::PrepareCMD(Command* cmd, HWDrawContext* context,
-                                      const Matrix& transform, float clip_depth,
-                                      Command* stencil_cmd) {
+void WGSLTessPathAAGeometry::PrepareCMD(Command* cmd, HWDrawContext* context,
+                                        const Matrix& transform,
+                                        float clip_depth,
+                                        Command* stencil_cmd) {
   SKITY_TRACE_EVENT(WGSLTessPathGeometry_PrepareCMD);
 
   // check the stencil cmd to determine if this is inside a coverage step
   // but this may be changed when implement draw call mergeing in dynamic shader
   // pipeline.
-  //  if (stencil_cmd) {
-  //    cmd->index_buffer = stencil_cmd->index_buffer;
-  //    cmd->vertex_buffer = stencil_cmd->vertex_buffer;
-  //    cmd->index_count = stencil_cmd->index_count;
-  //    cmd->uniform_bindings = stencil_cmd->uniform_bindings.Clone();
-  //    cmd->instance_count = stencil_cmd->instance_count;
-  //    cmd->instance_buffer = stencil_cmd->instance_buffer;
-  //    return;
-  //  }
+  // if (stencil_cmd) {
+  //   cmd->index_buffer = stencil_cmd->index_buffer;
+  //   cmd->vertex_buffer = stencil_cmd->vertex_buffer;
+  //   cmd->index_count = stencil_cmd->index_count;
+  //   cmd->uniform_bindings = stencil_cmd->uniform_bindings.Clone();
+  //   cmd->instance_count = stencil_cmd->instance_count;
+  //   cmd->instance_buffer = stencil_cmd->instance_buffer;
+  //   return;
+  // }
 
   if (cmd->pipeline == nullptr) {
     return;
@@ -309,21 +264,50 @@ void WGSLTessPathGeometry::PrepareCMD(Command* cmd, HWDrawContext* context,
 
   auto pipeline = cmd->pipeline;
 
+  const static int32_t kNumSegments = 32;
   std::vector<float> vertex_array;
 
-  for (int i = -1; i <= kMaxNumSegmentsPerInstance; i++) {
-    vertex_array.push_back(i);
+  for (int i = 0; i < 3 * (kNumSegments + 1); i++) {
+    vertex_array.push_back(i % (kNumSegments + 1));  // index
+
+    if (i / (kNumSegments + 1) == 0) {
+      vertex_array.push_back(0.0);
+    } else if (i / (kNumSegments + 1) == 1) {
+      vertex_array.push_back(1);  // offset
+    } else {
+      vertex_array.push_back(-1);  // offset
+    }
   }
 
-  assert(vertex_array.size() == kMaxNumSegmentsPerInstance + 2);
+  assert(vertex_array.size() == 6 * (kNumSegments + 1));
 
   std::vector<uint32_t> index_array;
-  for (int i = 1; i <= kMaxNumSegmentsPerInstance; i++) {
-    index_array.push_back(0);
-    index_array.push_back(i);
-    index_array.push_back(i + 1);
+  for (int i = 0; i < kNumSegments; i++) {
+    uint32_t curr = i;
+    uint32_t next = i + 1;
+    uint32_t outer_curr = curr + (kNumSegments + 1);
+    uint32_t outer_next = next + (kNumSegments + 1);
+    uint32_t inner_curr = outer_curr + (kNumSegments + 1);
+    uint32_t inner_next = outer_next + (kNumSegments + 1);
+
+    index_array.push_back(curr);
+    index_array.push_back(next);
+    index_array.push_back(outer_next);
+
+    index_array.push_back(curr);
+    index_array.push_back(outer_next);
+    index_array.push_back(outer_curr);
+
+    index_array.push_back(inner_curr);
+    index_array.push_back(inner_next);
+    index_array.push_back(next);
+
+    index_array.push_back(inner_curr);
+    index_array.push_back(next);
+    index_array.push_back(curr);
   }
-  assert(index_array.size() == kMaxNumSegmentsPerInstance * 3);
+
+  assert(index_array.size() == 12 * kNumSegments);
 
   cmd->vertex_buffer =
       context->stageBuffer->Push(const_cast<float*>(vertex_array.data()),
@@ -334,7 +318,7 @@ void WGSLTessPathGeometry::PrepareCMD(Command* cmd, HWDrawContext* context,
 
   cmd->index_count = index_array.size();
 
-  TessPathVisitor path_visitor(transform);
+  TessPathAAVisitor path_visitor(transform);
   path_visitor.VisitPath(path_, true);
 
   std::vector<Instance> instances = path_visitor.GetInstances();

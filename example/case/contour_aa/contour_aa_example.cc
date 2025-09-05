@@ -33,10 +33,13 @@ static void fill_concave_path(skity::Canvas* canvas) {
   paint.SetAntiAlias(false);
 
   skity::Path path;
-  path.MoveTo(30.0f, 80.0f);
-  path.LineTo(120.0f, 20.0f);
-  path.LineTo(080.0f, 75.0f);
-  path.LineTo(120.0f, 150.0f);
+  // path.MoveTo(30.0f, 80.0f);
+  // path.LineTo(120.0f, 20.0f);
+  // path.LineTo(080.0f, 75.0f);
+  // path.LineTo(120.0f, 150.0f);
+    path.MoveTo(30.0f, 80.0f);
+//  path.CubicTo(80.0f, 20.0f, 120.0f, 120.0f, 160.0f, 80.0f);
+    path.CubicTo(30.0f, 10.f, 90.f, 10.f, 90.f, 80.f);
   path.Close();
   canvas->DrawPath(path, paint);
 

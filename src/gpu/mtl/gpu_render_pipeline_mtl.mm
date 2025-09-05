@@ -60,10 +60,14 @@ std::unique_ptr<GPURenderPipelineMTL> GPURenderPipelineMTL::Make(
       static_cast<MTLColorWriteMask>(MTLColorWriteMaskAll & target.write_mask);
   render_pipeline_desc.label = @(desc.label.c_str());
 
-  NSError* psoError;
+  NSError* psoError = nil;
   id<MTLRenderPipelineState> render_pipeline_state =
       [device.GetMTLDevice() newRenderPipelineStateWithDescriptor:render_pipeline_desc
                                                             error:&psoError];
+  if (psoError) {
+      return nil;
+        
+  }
 
   id<MTLDepthStencilState> depthStencilState =
       device.FindOrCreateDepthStencilState(desc.depth_stencil);

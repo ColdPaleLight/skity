@@ -129,6 +129,7 @@ std::vector<int64_t> GetAATypes() {
 #else
   return {
       0,  // kNoAA
+      2,  // kContourAA
   };
 #endif
 }

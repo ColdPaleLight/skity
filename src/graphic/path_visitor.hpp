@@ -63,6 +63,8 @@ class PathVisitor {
 
   virtual void OnClose() = 0;
 
+  const Matrix& GetMatrix() const { return matrix_; }
+
  private:
   bool approx_curve_;
   Path::PathFillType fill_type_ = Path::PathFillType::kWinding;

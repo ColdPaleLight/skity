@@ -44,6 +44,28 @@ class ContourAAExample : public skity::example::WindowClient {
 
   void OnDraw(skity::GPUContext *context, skity::Canvas *canvas) override {
     if (result_) {
+        {
+            skity::GPURenderTargetDescriptor desc{};
+            desc.width = 1000;
+            desc.height = 800;
+            desc.sample_count = 1;
+
+            auto render_target = context->CreateRenderTarget(desc);
+
+            if (render_target == nullptr) {
+              return;
+            }
+
+            auto canvas = render_target->GetCanvas();
+
+            canvas->Clear(skity::Color_WHITE);
+
+            skity::example::contour::aa::draw_contour_aa(canvas);
+
+            result_ = context->MakeSnapshot(std::move(render_target));
+            
+        }
+       
       canvas->DrawImage(result_, 0, 0);
     } else {
       canvas->Clear(skity::Color_RED);
