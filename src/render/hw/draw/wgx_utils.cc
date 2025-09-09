@@ -4,6 +4,8 @@
 
 #include "src/render/hw/draw/wgx_utils.hpp"
 
+#include <cstdlib>
+
 #include "src/gpu/gpu_render_pass.hpp"
 #include "src/render/hw/hw_draw.hpp"
 #include "src/render/hw/hw_stage_buffer.hpp"
@@ -608,6 +610,22 @@ bool WGXGradientFragment::SetupSweepInfo(
   info_entry->type_definition->SetData(sweep_pts.data(),
                                        sweep_pts.size() * sizeof(float));
 
+  return true;
+}
+
+bool ReplacePlaceholder(
+    std::string& wgsl,
+    const std::unordered_map<std::string, std::string>& replacements)  {
+  for (const auto& [placeholder, value] : replacements) {
+    size_t pos = wgsl.find(placeholder);
+    if (pos != std::string::npos) {
+      wgsl.replace(pos, placeholder.length(), value);
+    } else {
+      // TODO LOG
+      abort();
+      return false;
+    }
+  }
   return true;
 }
 

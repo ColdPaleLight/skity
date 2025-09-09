@@ -14,6 +14,12 @@ void draw_shapes(skity::Canvas* canvas) {
   // canvas->DrawPaint(paint);
 
   paint.SetColor(Color_GREEN);
+  paint.SetStyle(Paint::kStroke_Style);
+    paint.SetAlphaF(0.5);
+  paint.SetStrokeWidth(20);
+//  paint.SetStrokeJoin(Paint::kRound_Join);
+  paint.SetStrokeCap(Paint::kRound_Cap);
+    
   Path path;
   path.MoveTo(100, 100);
 //  path.LineTo(300, 100);
@@ -23,7 +29,23 @@ void draw_shapes(skity::Canvas* canvas) {
 //  path.Close();
   
   path.QuadTo(200, 0, 300, 100);
+  path.LineTo(50, 150);
+    path.LineTo(400, 500);
+    
+    
+    path.MoveTo(700, 600);
+    path.LineTo(300, 200);
+    path.LineTo(400, 200);
+    path.Close();
+//    path.Close();
   canvas->DrawPath(path, paint);
+//    
+//  paint.SetColor(0xffff0000);
+////    
+//  paint.SetStrokeCap(Paint::kButt_Cap);
+//  canvas->DrawPath(path, paint);
+    
+    
   //   canvas->DrawRect(Rect::MakeLTRB(100, 100, 300, 300), paint);
   //   paint.SetColor(Color_BLUE);
   // canvas->DrawCircle(200, 200, 100, paint);

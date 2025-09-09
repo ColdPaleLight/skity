@@ -201,6 +201,7 @@ std::string WGSLTessPathGeometry::GenSourceWGSL() const {
 
   wgsl_code += R"(
       @group(0) @binding(0) var<uniform> common_slot: CommonSlot;
+      // @ExtraUniform
 
       struct VSInput {
           @location(0) index: f32,
@@ -213,6 +214,7 @@ std::string WGSLTessPathGeometry::GenSourceWGSL() const {
 
       struct VSOutput {
           @builtin(position) pos: vec4<f32>,
+          // @ExtraVSOutput
       };
 
 
@@ -240,6 +242,7 @@ std::string WGSLTessPathGeometry::GenSourceWGSL() const {
           }
 
           output.pos = get_vertex_position(pos.xy, common_slot);
+          // @ExtraBeforeReturn
           return output;
       }
     )";
@@ -263,8 +266,8 @@ void WGSLTessPathGeometry::PrepareCMD(Command* cmd, HWDrawContext* context,
   SKITY_TRACE_EVENT(WGSLTessPathGeometry_PrepareCMD);
 
   // check the stencil cmd to determine if this is inside a coverage step
-  // but this may be changed when implement draw call mergeing in dynamic shader
-  // pipeline.
+  // but this may be changed when implement draw call mergeing in dynamic
+  // shader pipeline.
   //  if (stencil_cmd) {
   //    cmd->index_buffer = stencil_cmd->index_buffer;
   //    cmd->vertex_buffer = stencil_cmd->vertex_buffer;
@@ -357,6 +360,173 @@ void WGSLTessPathGeometry::PrepareCMD(Command* cmd, HWDrawContext* context,
   }
 
   UploadBindGroup(common_slot, cmd, context);
+}
+
+WGSLGradientTessPath::WGSLGradientTessPath(const Path& path, const Paint& paint,
+                                           const Matrix& local_matrix)
+    : WGSLTessPathGeometry(path, paint), local_matrix_(local_matrix) {}
+
+std::string WGSLGradientTessPath::GenSourceWGSL() const {
+  auto wgsl = WGSLTessPathGeometry::GenSourceWGSL();
+  std::unordered_map<std::string, std::string> replacements = {
+      {
+          "// @ExtraUniform",
+          "@group(0) @binding(1) var<uniform> inv_matrix   : mat4x4<f32>;",
+      },
+      {
+          "// @ExtraVSOutput",
+          "@location(0)        v_pos   :   vec2<f32>,",
+      },
+      {
+          "// @ExtraBeforeReturn",
+          "output.v_pos = (inv_matrix * vec4<f32>(pos.xy, 0.0, 1.0)).xy;",
+      },
+  };
+
+  ReplacePlaceholder(wgsl, replacements);
+  return wgsl;
+}
+
+std::string WGSLGradientTessPath::GetShaderName() const {
+  std::string name = "CommonGradientTessPathVertexWGSL";
+
+  return name;
+}
+
+const char* WGSLGradientTessPath::GetEntryPoint() const { return "vs_main"; }
+
+void WGSLGradientTessPath::PrepareCMD(Command* cmd, HWDrawContext* context,
+                                      const Matrix& transform, float clip_depth,
+                                      Command* stencil_cmd) {
+  SKITY_TRACE_EVENT(WGSLGradientPath_PrepareCMD);
+
+  if (stencil_cmd) {
+    cmd->index_buffer = stencil_cmd->index_buffer;
+    cmd->vertex_buffer = stencil_cmd->vertex_buffer;
+    cmd->index_count = stencil_cmd->index_count;
+    cmd->uniform_bindings = stencil_cmd->uniform_bindings.Clone();
+    cmd->instance_count = stencil_cmd->instance_count;
+    cmd->instance_buffer = stencil_cmd->instance_buffer;
+    return;
+  }
+
+  WGSLTessPathGeometry::PrepareCMD(cmd, context, transform, clip_depth,
+                                   stencil_cmd);
+
+  if (cmd->pipeline == nullptr) {
+    return;
+  }
+
+  auto group = cmd->pipeline->GetBindingGroup(0);
+
+  if (group == nullptr) {
+    return;
+  }
+
+  auto inv_matrix_entry = group->GetEntry(1);
+
+  if (inv_matrix_entry == nullptr ||
+      inv_matrix_entry->type_definition->name != "mat4x4<f32>") {
+    return;
+  }
+
+  Matrix inv_matrix{};
+
+  local_matrix_.Invert(&inv_matrix);
+
+  inv_matrix_entry->type_definition->SetData(&inv_matrix, sizeof(Matrix));
+
+  UploadBindGroup(inv_matrix_entry, cmd, context);
+}
+
+WGSLTextureTessPath::WGSLTextureTessPath(const Path& path, const Paint& paint,
+
+                                         const Matrix& local_matrix,
+                                         float width, float height)
+    : WGSLTessPathGeometry(path, paint),
+      local_matrix_(local_matrix),
+      width_(width),
+      height_(height) {}
+
+std::string WGSLTextureTessPath::GenSourceWGSL() const {
+  std::string wgsl_code = CommonVertexWGSL();
+  wgsl_code += R"(
+    struct ImageBoundsInfo {
+      bounds      : vec2<f32>,
+      inv_matrix  : mat4x4<f32>,
+    };
+
+  )";
+  wgsl_code += WGSLTessPathGeometry::GenSourceWGSL();
+  std::unordered_map<std::string, std::string> replacements = {
+      {
+          "// @ExtraUniform",
+          "@group(0) @binding(1) var<uniform> image_bounds : ImageBoundsInfo;",
+      },
+      {
+          "// @ExtraVSOutput",
+          "@location(0)        frag_coord  : vec2<f32>,",
+      },
+      {"// @ExtraBeforeReturn",
+       R"(
+          var mapped_pos  : vec2<f32>     = (image_bounds.inv_matrix * vec4<f32>(pos.xy, 0.0, 1.0)).xy;
+          var mapped_lt   : vec2<f32>     = vec2<f32>(0.0, 0.0);
+          var mapped_rb   : vec2<f32>     = image_bounds.bounds;
+          var total_x     : f32           = mapped_rb.x - mapped_lt.x;
+          var total_y     : f32           = mapped_rb.y - mapped_lt.y;
+          var v_x         : f32           = (mapped_pos.x - mapped_lt.x) / total_x;
+          var v_y         : f32           = (mapped_pos.y - mapped_lt.y) / total_y;
+
+          output.frag_coord = vec2<f32>(v_x, v_y);
+        )"}};
+
+  ReplacePlaceholder(wgsl_code, replacements);
+
+  return wgsl_code;
+}  // namespace skity
+
+std::string WGSLTextureTessPath::GetShaderName() const {
+  std::string name = "ImageTessPathVertexWGSL";
+
+  return name;
+}
+
+const char* WGSLTextureTessPath::GetEntryPoint() const { return "vs_main"; }
+
+void WGSLTextureTessPath::PrepareCMD(Command* cmd, HWDrawContext* context,
+                                     const Matrix& transform, float clip_depth,
+                                     Command* stencil_cmd) {
+  SKITY_TRACE_EVENT(WGSLTextureTessPath_PrepareCMD);
+
+  WGSLTessPathGeometry::PrepareCMD(cmd, context, transform, clip_depth,
+                                   stencil_cmd);
+
+  if (cmd->pipeline == nullptr) {
+    return;
+  }
+
+  auto group = cmd->pipeline->GetBindingGroup(0);
+  if (group == nullptr) {
+    return;
+  }
+
+  auto image_bounds_entry = group->GetEntry(1);
+  if (image_bounds_entry == nullptr ||
+      image_bounds_entry->type_definition->name != "ImageBoundsInfo") {
+    return;
+  }
+
+  auto image_bounds_struct = static_cast<wgx::StructDefinition*>(
+      image_bounds_entry->type_definition.get());
+
+  std::array<float, 2> bounds{width_, height_};
+  image_bounds_struct->GetMember("bounds")->type->SetData(
+      bounds.data(), bounds.size() * sizeof(float));
+
+  image_bounds_struct->GetMember("inv_matrix")
+      ->type->SetData(&local_matrix_, sizeof(Matrix));
+
+  UploadBindGroup(image_bounds_entry, cmd, context);
 }
 
 }  // namespace skity

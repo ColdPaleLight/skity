@@ -2,8 +2,8 @@
 // Licensed under the Apache License Version 2.0 that can be found in the
 // LICENSE file in the root directory of this source tree.
 
-#ifndef SRC_RENDER_HW_DRAW_GEOMETRY_WGSL_TESS_PATH_GEOMETRY_HPP
-#define SRC_RENDER_HW_DRAW_GEOMETRY_WGSL_TESS_PATH_GEOMETRY_HPP
+#ifndef SRC_RENDER_HW_DRAW_GEOMETRY_WGSL_TESS_PATH_STROKE_GEOMETRY_HPP
+#define SRC_RENDER_HW_DRAW_GEOMETRY_WGSL_TESS_PATH_STROKE_GEOMETRY_HPP
 
 #include <skity/graphic/paint.hpp>
 #include <skity/graphic/path.hpp>
@@ -12,11 +12,11 @@
 
 namespace skity {
 
-class WGSLTessPathGeometry : public HWWGSLGeometry {
+class WGSLTessPathStrokeGeometry : public HWWGSLGeometry {
  public:
-  WGSLTessPathGeometry(const Path& path, const Paint& paint);
+  WGSLTessPathStrokeGeometry(const Path& path, const Paint& paint);
 
-  ~WGSLTessPathGeometry() override = default;
+  ~WGSLTessPathStrokeGeometry() override = default;
 
   const std::vector<GPUVertexBufferLayout>& GetBufferLayout() const override;
 
@@ -35,12 +35,12 @@ class WGSLTessPathGeometry : public HWWGSLGeometry {
   std::vector<GPUVertexBufferLayout> layout_;
 };
 
-class WGSLGradientTessPath : public WGSLTessPathGeometry {
+class WGSLGradientTessPathStroke : public WGSLTessPathStrokeGeometry {
  public:
-  WGSLGradientTessPath(const Path& path, const Paint& paint,
-                       const Matrix& local_matrix);
+  WGSLGradientTessPathStroke(const Path& path, const Paint& paint,
+                             const Matrix& local_matrix);
 
-  ~WGSLGradientTessPath() override = default;
+  ~WGSLGradientTessPathStroke() override = default;
 
   std::string GenSourceWGSL() const override;
 
@@ -55,12 +55,13 @@ class WGSLGradientTessPath : public WGSLTessPathGeometry {
   Matrix local_matrix_;
 };
 
-class WGSLTextureTessPath : public WGSLTessPathGeometry {
+class WGSLTextureTessPathStroke : public WGSLTessPathStrokeGeometry {
  public:
-  WGSLTextureTessPath(const Path& path, const Paint& paint,
-                      const Matrix& local_matrix, float width, float height);
+  WGSLTextureTessPathStroke(const Path& path, const Paint& paint,
+                            const Matrix& local_matrix, float width,
+                            float height);
 
-  ~WGSLTextureTessPath() override = default;
+  ~WGSLTextureTessPathStroke() override = default;
 
   std::string GenSourceWGSL() const override;
 
@@ -79,4 +80,4 @@ class WGSLTextureTessPath : public WGSLTessPathGeometry {
 
 }  // namespace skity
 
-#endif  // SRC_RENDER_HW_DRAW_GEOMETRY_WGSL_TESS_PATH_GEOMETRY_HPP
+#endif  // SRC_RENDER_HW_DRAW_GEOMETRY_WGSL_TESS_PATH_STROKE_GEOMETRY_HPP

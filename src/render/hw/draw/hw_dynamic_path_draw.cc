@@ -14,6 +14,7 @@
 #include "src/render/hw/draw/geometry/wgsl_path_geometry.hpp"
 #include "src/render/hw/draw/geometry/wgsl_tess_path_aa_geometry.hpp"
 #include "src/render/hw/draw/geometry/wgsl_tess_path_geometry.hpp"
+#include "src/render/hw/draw/geometry/wgsl_tess_path_stroke_geometry.hpp"
 #include "src/render/hw/draw/geometry/wgsl_texture_path.hpp"
 #include "src/render/hw/draw/step/color_step.hpp"
 #include "src/render/hw/draw/step/stencil_step.hpp"
@@ -53,15 +54,27 @@ void HWDynamicPathDraw::OnGenerateDrawStep(ArrayList<HWDrawStep *, 2> &steps,
   }
 
   if (!single_pass) {
-    // need stencil step first
-    steps.emplace_back(context->arena_allocator->Make<StencilStep>(
-        //        context->arena_allocator->Make<WGSLPathGeometry>(path_,
-        //        paint_,
-        //                                                         is_stroke_,
-        //                                                         false),
-        context->arena_allocator->Make<WGSLTessPathGeometry>(path_, paint_),
-        context->arena_allocator->Make<WGSLStencilFragment>(),
-        coverage == CoverageType::kNoZero));
+    if (is_stroke_) {
+      steps.emplace_back(context->arena_allocator->Make<StencilStep>(
+          //        context->arena_allocator->Make<WGSLPathGeometry>(path_,
+          //        paint_,
+          //                                                         is_stroke_,
+          //                                                         false),
+          context->arena_allocator->Make<WGSLTessPathStrokeGeometry>(path_,
+                                                                     paint_),
+          context->arena_allocator->Make<WGSLStencilFragment>(),
+          coverage == CoverageType::kNoZero));
+    } else {
+      // need stencil step first
+      steps.emplace_back(context->arena_allocator->Make<StencilStep>(
+          //        context->arena_allocator->Make<WGSLPathGeometry>(path_,
+          //        paint_,
+          //                                                         is_stroke_,
+          //                                                         false),
+          context->arena_allocator->Make<WGSLTessPathGeometry>(path_, paint_),
+          context->arena_allocator->Make<WGSLStencilFragment>(),
+          coverage == CoverageType::kNoZero));
+    }
   }
 
   if (paint_.IsAntiAlias()) {
@@ -100,20 +113,36 @@ HWWGSLGeometry *HWDynamicPathDraw::GenGeometry(HWDrawContext *context,
       Matrix inv_local_matrix{};
 
       pixmap_shader->GetLocalMatrix().Invert(&inv_local_matrix);
+      if (is_stroke_) {
+        return arena_allocator->Make<WGSLTextureTessPathStroke>(
+            path_, paint_, inv_local_matrix, static_cast<float>(image->Width()),
+            static_cast<float>(image->Height()));
+      } else {
+        return arena_allocator->Make<WGSLTextureTessPath>(
+            path_, paint_, inv_local_matrix, static_cast<float>(image->Width()),
+            static_cast<float>(image->Height()));
+      }
 
-      return arena_allocator->Make<WGSLTexturePath>(
-          path_, paint_, is_stroke_, aa, inv_local_matrix,
-          static_cast<float>(image->Width()),
-          static_cast<float>(image->Height()));
     } else {
-      return arena_allocator->Make<WGSLGradientPath>(
-          path_, paint_, is_stroke_, aa, paint_.GetShader()->GetLocalMatrix());
+      // return arena_allocator->Make<WGSLGradientPath>(
+      //     path_, paint_, is_stroke_, aa,
+      //     paint_.GetShader()->GetLocalMatrix());
+      if (is_stroke_) {
+        return arena_allocator->Make<WGSLGradientTessPathStroke>(
+            path_, paint_, paint_.GetShader()->GetLocalMatrix());
+      } else {
+        return arena_allocator->Make<WGSLGradientTessPath>(
+            path_, paint_, paint_.GetShader()->GetLocalMatrix());
+      }
     }
 
   } else {
     // return arena_allocator->Make<WGSLPathGeometry>(path_, paint_, is_stroke_,
     //                                                aa);
-    if (aa) {
+
+    if (is_stroke_) {
+      return arena_allocator->Make<WGSLTessPathStrokeGeometry>(path_, paint_);
+    } else if (aa) {
       return arena_allocator->Make<WGSLTessPathAAGeometry>(path_, paint_);
     } else {
       return arena_allocator->Make<WGSLTessPathGeometry>(path_, paint_);

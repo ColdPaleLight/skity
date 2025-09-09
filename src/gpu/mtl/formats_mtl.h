@@ -140,6 +140,22 @@ constexpr MTLVertexFormat ToMTLVertexFormat(GPUVertexFormat format) {
       return MTLVertexFormatFloat3;
     case GPUVertexFormat::kFloat32x4:
       return MTLVertexFormatFloat4;
+    case GPUVertexFormat::kInt32:
+      return MTLVertexFormatInt;
+    case GPUVertexFormat::kInt32x2:
+      return MTLVertexFormatInt2;
+    case GPUVertexFormat::kInt32x3:
+      return MTLVertexFormatInt3;
+    case GPUVertexFormat::kInt32x4:
+      return MTLVertexFormatInt4;
+    case GPUVertexFormat::kUInt32:
+      return MTLVertexFormatUInt;
+    case GPUVertexFormat::kUInt32x2:
+      return MTLVertexFormatUInt2;
+    case GPUVertexFormat::kUInt32x3:
+      return MTLVertexFormatUInt3;
+    case GPUVertexFormat::kUInt32x4:
+      return MTLVertexFormatUInt4;
   }
 }
 

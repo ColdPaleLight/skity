@@ -99,6 +99,14 @@ enum class GPUVertexFormat : uint32_t {
   kFloat32x2 = 2,
   kFloat32x3 = 3,
   kFloat32x4 = 4,
+  kInt32 = 5,
+  kInt32x2 = 6,
+  kInt32x3 = 7,
+  kInt32x4 = 8,
+  kUInt32 = 9,
+  kUInt32x2 = 10,
+  kUInt32x3 = 11,
+  kUInt32x4 = 12,
 };
 
 enum class GPUVertexStepMode {

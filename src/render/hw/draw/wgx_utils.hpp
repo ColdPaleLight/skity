@@ -31,6 +31,10 @@ GPUShaderStageMask ToShaderStage(wgx::ShaderStage stage);
 
 const char* RemapTileFunction();
 
+bool ReplacePlaceholder(
+    std::string& wgsl,
+    const std::unordered_map<std::string, std::string>& replacements);
+
 /**
  * Common code generator for all vertex shader.
  *
