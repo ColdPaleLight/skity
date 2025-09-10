@@ -608,68 +608,11 @@ void WGSLTessPathStrokeGeometry::PrepareCMD(Command* cmd,
 
   auto pipeline = cmd->pipeline;
 
-  std::vector<float> vertex_array;
-
-  for (int i = 0; i < 2 * (kMaxNumSegmentsPerInstance + 1); i++) {
-    vertex_array.push_back(i % (kMaxNumSegmentsPerInstance + 1));  // index
-    if (i / (kMaxNumSegmentsPerInstance + 1) == 0) {
-      vertex_array.push_back(1);  // offset
-    } else {
-      vertex_array.push_back(-1);  // offset
-    }
-  }
-
-  std::vector<uint32_t> index_array;
-  for (int i = 0; i < kMaxNumSegmentsPerInstance; i++) {
-    uint32_t outer_curr = i;
-    uint32_t outer_next = i + 1;
-    uint32_t inner_curr = outer_curr + (kMaxNumSegmentsPerInstance + 1);
-    uint32_t inner_next = outer_next + (kMaxNumSegmentsPerInstance + 1);
-
-    index_array.push_back(outer_curr);
-    index_array.push_back(outer_next);
-    index_array.push_back(inner_next);
-
-    index_array.push_back(outer_curr);
-    index_array.push_back(inner_next);
-    index_array.push_back(inner_curr);
-  }
-
-  uint32_t join_index_base = 2 * (kMaxNumSegmentsPerInstance + 1);
-
-  // Join Vertex 0
-  vertex_array.push_back(-1);
-  vertex_array.push_back(0);
-
-  // Join Vertex 1
-  vertex_array.push_back(-2);
-  vertex_array.push_back(0);
-
-  // Join Vertex 2
-  vertex_array.push_back(-3);
-  vertex_array.push_back(0);
-
-  // Join Vertex 3
-  vertex_array.push_back(-4);
-  vertex_array.push_back(0);
-
-  index_array.push_back(join_index_base);      // -1
-  index_array.push_back(join_index_base + 1);  // -2
-  index_array.push_back(join_index_base + 2);  // -3
-
-  index_array.push_back(join_index_base);      // -1
-  index_array.push_back(join_index_base + 2);  // -3
-  index_array.push_back(join_index_base + 3);  // -4
-
   cmd->vertex_buffer =
-      context->stageBuffer->Push(const_cast<float*>(vertex_array.data()),
-                                 vertex_array.size() * sizeof(float));
+      context->static_buffer->GetTessPathStrokeVertexBufferView();
   cmd->index_buffer =
-      context->stageBuffer->PushIndex(const_cast<uint32_t*>(index_array.data()),
-                                      index_array.size() * sizeof(uint32_t));
-
-  cmd->index_count = index_array.size();
-
+      context->static_buffer->GetTessPathStrokeIndexBufferView();
+  cmd->index_count = cmd->index_buffer.range / sizeof(uint32_t);
   context->stageBuffer->BeginWritingInstance(
       2 * path_.CountVerbs() * sizeof(Instance), alignof(Instance));
 
@@ -695,6 +638,71 @@ void WGSLTessPathStrokeGeometry::PrepareCMD(Command* cmd,
   }
 
   UploadBindGroup(common_slot, cmd, context);
+}
+
+GPUBufferView WGSLTessPathStrokeGeometry::CreateVertexBufferView(
+    HWStageBuffer* stage_bufer) {
+  std::vector<float> vertex_array;
+
+  for (int i = 0; i < 2 * (kMaxNumSegmentsPerInstance + 1); i++) {
+    vertex_array.push_back(i % (kMaxNumSegmentsPerInstance + 1));  // index
+    if (i / (kMaxNumSegmentsPerInstance + 1) == 0) {
+      vertex_array.push_back(1);  // offset
+    } else {
+      vertex_array.push_back(-1);  // offset
+    }
+  }
+
+  // Join Vertex 0
+  vertex_array.push_back(-1);
+  vertex_array.push_back(0);
+
+  // Join Vertex 1
+  vertex_array.push_back(-2);
+  vertex_array.push_back(0);
+
+  // Join Vertex 2
+  vertex_array.push_back(-3);
+  vertex_array.push_back(0);
+
+  // Join Vertex 3
+  vertex_array.push_back(-4);
+  vertex_array.push_back(0);
+
+  return stage_bufer->Push(const_cast<float*>(vertex_array.data()),
+                           vertex_array.size() * sizeof(float));
+}
+
+GPUBufferView WGSLTessPathStrokeGeometry::CreateIndexBufferView(
+    HWStageBuffer* stage_bufer) {
+  std::vector<uint32_t> index_array;
+  for (int i = 0; i < kMaxNumSegmentsPerInstance; i++) {
+    uint32_t outer_curr = i;
+    uint32_t outer_next = i + 1;
+    uint32_t inner_curr = outer_curr + (kMaxNumSegmentsPerInstance + 1);
+    uint32_t inner_next = outer_next + (kMaxNumSegmentsPerInstance + 1);
+
+    index_array.push_back(outer_curr);
+    index_array.push_back(outer_next);
+    index_array.push_back(inner_next);
+
+    index_array.push_back(outer_curr);
+    index_array.push_back(inner_next);
+    index_array.push_back(inner_curr);
+  }
+
+  uint32_t join_index_base = 2 * (kMaxNumSegmentsPerInstance + 1);
+
+  index_array.push_back(join_index_base);      // -1
+  index_array.push_back(join_index_base + 1);  // -2
+  index_array.push_back(join_index_base + 2);  // -3
+
+  index_array.push_back(join_index_base);      // -1
+  index_array.push_back(join_index_base + 2);  // -3
+  index_array.push_back(join_index_base + 3);  // -4
+
+  return stage_bufer->PushIndex(const_cast<uint32_t*>(index_array.data()),
+                                index_array.size() * sizeof(uint32_t));
 }
 
 WGSLGradientTessPathStroke::WGSLGradientTessPathStroke(

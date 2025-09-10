@@ -32,6 +32,7 @@ HWCanvas::HWCanvas(GPUSurfaceImpl* surface)
       enable_msaa_(surface->GetSampleCount() > 1),
       enable_fxaa_(surface->UseFxaa()),
       gpu_buffer_(surface->GetStageBuffer()),
+      static_buffer_(surface_->GetStaticBuffer()),
       arena_allocator_(surface_->GetArenaAllocator()) {
   Init();
 }
@@ -366,33 +367,34 @@ void HWCanvas::DrawPathInternal(const Path& path, const Paint& paint,
   };
 
   if (need_fill) {
-//    if (path.is_circle) {
-//      HWDraw* draw = arena_allocator_->Make<HWDynamicOvalDraw>(
-//          transform, path.radius, path.center, paint);
-//      if (draw == nullptr) {
-//        return;
-//      }
-//
-//      draw->SetSampleCount(GetCanvasSampleCount());
-//      auto bounds =
-//          false ? paint.ComputeFastBounds(path.GetBounds()) : path.GetBounds();
-//      SetupLayerSpaceBoundsForDraw(draw, bounds);
-//      CurrentLayer()->AddDraw(draw);
-//      return;
-//    } else {
-      Paint work_paint(paint);
-      work_paint.SetStyle(Paint::kFill_Style);
-      work_paint.SetAntiAlias(need_contour_aa);
-      Path effect_path;
-      const Path* dst = &path;
+    //    if (path.is_circle) {
+    //      HWDraw* draw = arena_allocator_->Make<HWDynamicOvalDraw>(
+    //          transform, path.radius, path.center, paint);
+    //      if (draw == nullptr) {
+    //        return;
+    //      }
+    //
+    //      draw->SetSampleCount(GetCanvasSampleCount());
+    //      auto bounds =
+    //          false ? paint.ComputeFastBounds(path.GetBounds()) :
+    //          path.GetBounds();
+    //      SetupLayerSpaceBoundsForDraw(draw, bounds);
+    //      CurrentLayer()->AddDraw(draw);
+    //      return;
+    //    } else {
+    Paint work_paint(paint);
+    work_paint.SetStyle(Paint::kFill_Style);
+    work_paint.SetAntiAlias(need_contour_aa);
+    Path effect_path;
+    const Path* dst = &path;
 
-      if (paint.GetPathEffect() && paint.GetPathEffect()->FilterPath(
-                                       &effect_path, path, false, work_paint)) {
-        dst = &effect_path;
-      }
+    if (paint.GetPathEffect() && paint.GetPathEffect()->FilterPath(
+                                     &effect_path, path, false, work_paint)) {
+      dst = &effect_path;
+    }
 
-      draw_op_handler(*dst, work_paint, false);
-//    }
+    draw_op_handler(*dst, work_paint, false);
+    //    }
   }
 
   if (need_stroke) {
@@ -515,6 +517,7 @@ void HWCanvas::OnFlush() {
     HWDrawContext draw_context;
     draw_context.ctx_scale = ctx_scale_;
     draw_context.stageBuffer = gpu_buffer_;
+    draw_context.static_buffer = static_buffer_;
     draw_context.pipelineLib = pipeline_lib_;
     draw_context.gpuContext = surface_->GetGPUContext();
     draw_context.pool = &pool;
@@ -551,6 +554,7 @@ uint32_t HWCanvas::GetCanvasSampleCount() {
 void HWCanvas::UploadMesh() {
   SKITY_TRACE_EVENT(HWCanvas_UploadMesh);
   gpu_buffer_->Flush();
+  static_buffer_->Flush();
 }
 
 HWLayer* HWCanvas::CurrentLayer() {

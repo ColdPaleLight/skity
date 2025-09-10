@@ -162,7 +162,7 @@ void GPURenderPassMTL::EncodeCommands(std::optional<GPUViewport> viewport,
                     static_cast<GPUBufferMTL*>(command->vertex_buffer.buffer)->GetMTLBuffer());
     if (command->instance_buffer.buffer != nullptr) {
       cache.SetBuffer(GPUShaderStage::kVertex, 1, command->instance_buffer.offset,
-                      static_cast<GPUBufferMTL*>(command->vertex_buffer.buffer)->GetMTLBuffer());
+                      static_cast<GPUBufferMTL*>(command->instance_buffer.buffer)->GetMTLBuffer());
     }
 
     if (command->instance_buffer.buffer != nullptr) {

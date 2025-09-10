@@ -12,6 +12,8 @@
 
 namespace skity {
 
+class HWStageBuffer;
+
 class WGSLTessPathStrokeGeometry : public HWWGSLGeometry {
  public:
   WGSLTessPathStrokeGeometry(const Path& path, const Paint& paint);
@@ -28,6 +30,10 @@ class WGSLTessPathStrokeGeometry : public HWWGSLGeometry {
 
   void PrepareCMD(Command* cmd, HWDrawContext* context, const Matrix& transform,
                   float clip_depth, Command* stencil_cmd) override;
+
+  static GPUBufferView CreateVertexBufferView(HWStageBuffer* stage_bufer);
+
+  static GPUBufferView CreateIndexBufferView(HWStageBuffer* stage_bufer);
 
  private:
   const Path& path_;

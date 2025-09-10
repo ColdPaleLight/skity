@@ -299,6 +299,8 @@ if(${SKITY_HW_RENDERER})
     ${CMAKE_CURRENT_LIST_DIR}/render/hw/hw_resource_cache.hpp
     ${CMAKE_CURRENT_LIST_DIR}/render/hw/hw_stage_buffer.cc
     ${CMAKE_CURRENT_LIST_DIR}/render/hw/hw_stage_buffer.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/render/hw/hw_static_buffer.cc
+    ${CMAKE_CURRENT_LIST_DIR}/render/hw/hw_static_buffer.hpp
   )
 
   # Dynamic shader

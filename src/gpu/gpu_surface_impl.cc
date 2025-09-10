@@ -4,8 +4,11 @@
 
 #include "src/gpu/gpu_surface_impl.hpp"
 
+#include <memory>
+
 #include "src/render/hw/hw_canvas.hpp"
 #include "src/render/hw/hw_stage_buffer.hpp"
+#include "src/render/hw/hw_static_buffer.hpp"
 #include "src/utils/arena_allocator.hpp"
 
 namespace skity {
@@ -25,6 +28,10 @@ GPUSurfaceImpl::~GPUSurfaceImpl() {}
 Canvas* GPUSurfaceImpl::LockCanvas(bool clear) {
   if (stage_buffer_ == nullptr) {
     stage_buffer_ = std::make_unique<HWStageBuffer>(ctx_->GetGPUDevice());
+  }
+
+  if (static_buffer_ == nullptr) {
+    static_buffer_ = std::make_unique<HWStaticBuffer>(ctx_->GetGPUDevice());
   }
 
   if (block_cache_allocator_ == nullptr) {

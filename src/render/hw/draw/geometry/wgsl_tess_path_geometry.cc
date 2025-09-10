@@ -322,30 +322,9 @@ void WGSLTessPathGeometry::PrepareCMD(Command* cmd, HWDrawContext* context,
 
   auto pipeline = cmd->pipeline;
 
-  std::vector<float> vertex_array;
-
-  for (int i = -1; i <= kMaxNumSegmentsPerInstance; i++) {
-    vertex_array.push_back(i);
-  }
-
-  assert(vertex_array.size() == kMaxNumSegmentsPerInstance + 2);
-
-  std::vector<uint32_t> index_array;
-  for (int i = 1; i <= kMaxNumSegmentsPerInstance; i++) {
-    index_array.push_back(0);
-    index_array.push_back(i);
-    index_array.push_back(i + 1);
-  }
-  assert(index_array.size() == kMaxNumSegmentsPerInstance * 3);
-
-  cmd->vertex_buffer =
-      context->stageBuffer->Push(const_cast<float*>(vertex_array.data()),
-                                 vertex_array.size() * sizeof(float));
-  cmd->index_buffer =
-      context->stageBuffer->PushIndex(const_cast<uint32_t*>(index_array.data()),
-                                      index_array.size() * sizeof(uint32_t));
-
-  cmd->index_count = index_array.size();
+  cmd->vertex_buffer = context->static_buffer->GetTessPathVertexBufferView();
+  cmd->index_buffer = context->static_buffer->GetTessPathIndexBufferView();
+  cmd->index_count = cmd->index_buffer.range / sizeof(uint32_t);
 
   TessPathVisitor path_visitor(transform, context->stageBuffer);
   context->stageBuffer->BeginWritingInstance(
@@ -369,6 +348,30 @@ void WGSLTessPathGeometry::PrepareCMD(Command* cmd, HWDrawContext* context,
   }
 
   UploadBindGroup(common_slot, cmd, context);
+}
+
+GPUBufferView WGSLTessPathGeometry::CreateVertexBufferView(
+    HWStageBuffer* stage_bufer) {
+  std::vector<float> vertex_array;
+  for (int i = -1; i <= kMaxNumSegmentsPerInstance; i++) {
+    vertex_array.push_back(i);
+  }
+  assert(vertex_array.size() == kMaxNumSegmentsPerInstance + 2);
+  return stage_bufer->Push(const_cast<float*>(vertex_array.data()),
+                           vertex_array.size() * sizeof(float));
+}
+
+GPUBufferView WGSLTessPathGeometry::CreateIndexBufferView(
+    HWStageBuffer* stage_bufer) {
+  std::vector<uint32_t> index_array;
+  for (int i = 1; i <= kMaxNumSegmentsPerInstance; i++) {
+    index_array.push_back(0);
+    index_array.push_back(i);
+    index_array.push_back(i + 1);
+  }
+  assert(index_array.size() == kMaxNumSegmentsPerInstance * 3);
+  return stage_bufer->PushIndex(const_cast<uint32_t*>(index_array.data()),
+                                index_array.size() * sizeof(uint32_t));
 }
 
 WGSLGradientTessPath::WGSLGradientTessPath(const Path& path, const Paint& paint,

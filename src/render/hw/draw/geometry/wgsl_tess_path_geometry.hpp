@@ -8,9 +8,13 @@
 #include <skity/graphic/paint.hpp>
 #include <skity/graphic/path.hpp>
 
+#include "src/gpu/gpu_buffer.hpp"
 #include "src/render/hw/draw/hw_wgsl_geometry.hpp"
+#include "src/render/hw/hw_stage_buffer.hpp"
 
 namespace skity {
+
+class HWStageBuffer;
 
 class WGSLTessPathGeometry : public HWWGSLGeometry {
  public:
@@ -28,6 +32,10 @@ class WGSLTessPathGeometry : public HWWGSLGeometry {
 
   void PrepareCMD(Command* cmd, HWDrawContext* context, const Matrix& transform,
                   float clip_depth, Command* stencil_cmd) override;
+
+  static GPUBufferView CreateVertexBufferView(HWStageBuffer* stage_bufer);
+
+  static GPUBufferView CreateIndexBufferView(HWStageBuffer* stage_bufer);
 
  private:
   const Path& path_;
