@@ -80,6 +80,14 @@ std::vector<GPUVertexBufferLayout> InitVertexBufferLayout() {
 }
 
 struct Instance {
+  Instance(const Vec4& p0p1, const Vec4& p2p3, const Vec2& fan_center,
+           float index_offset, float num_segments)
+      : p0p1(p0p1),
+        p2p3(p2p3),
+        fan_center(fan_center),
+        index_offset(index_offset),
+        num_segments(num_segments) {}
+
   Vec4 p0p1;
   Vec4 p2p3;
   Vec2 fan_center;
@@ -90,9 +98,10 @@ struct Instance {
 static_assert(sizeof(Instance) == 48);
 
 struct TessPathVisitor : public PathVisitor {
-  explicit TessPathVisitor(const Matrix& matrix)
+  explicit TessPathVisitor(const Matrix& matrix, HWStageBuffer* stage_buffer)
       : PathVisitor(false, matrix),
-        xform_(wangs_formula::VectorXform(matrix)) {}
+        xform_(wangs_formula::VectorXform(matrix)),
+        stage_buffer_(stage_buffer) {}
 
   void OnBeginPath() override {}
 
@@ -101,8 +110,8 @@ struct TessPathVisitor : public PathVisitor {
   void OnMoveTo(Vec2 const& p) override { fan_center = p; }
 
   void OnLineTo(Vec2 const& p0, Vec2 const& p1) override {
-    instances.push_back(
-        Instance{Vec4{p0, p0}, Vec4{p1, p1}, fan_center, 0.f, 1.f});
+    stage_buffer_->AppendInstance<Instance>(Vec4{p0, p0}, Vec4{p1, p1},
+                                            fan_center, 0.f, 1.f);
   }
 
   void OnQuadTo(Vec2 const& p0, Vec2 const& p1, Vec2 const& p2) override {
@@ -119,17 +128,17 @@ struct TessPathVisitor : public PathVisitor {
     uint32_t count = num / kMaxNumSegmentsPerInstance;
 
     for (uint32_t i = 0; i < count; i++) {
-      instances.push_back(
-          Instance{Vec4{p0, ctr1}, Vec4{ctr2, p2}, fan_center,
-                   static_cast<float>(i * kMaxNumSegmentsPerInstance),
-                   static_cast<float>(num)});
+      stage_buffer_->AppendInstance<Instance>(
+          Vec4{p0, ctr1}, Vec4{ctr2, p2}, fan_center,
+          static_cast<float>(i * kMaxNumSegmentsPerInstance),
+          static_cast<float>(num));
     }
 
     if (remain > 0) {
-      instances.push_back(
-          Instance{Vec4{p0, ctr1}, Vec4{ctr2, p2}, fan_center,
-                   static_cast<float>(count * kMaxNumSegmentsPerInstance),
-                   static_cast<float>(num)});
+      stage_buffer_->AppendInstance<Instance>(
+          Vec4{p0, ctr1}, Vec4{ctr2, p2}, fan_center,
+          static_cast<float>(count * kMaxNumSegmentsPerInstance),
+          static_cast<float>(num));
     }
   }
 
@@ -161,29 +170,30 @@ struct TessPathVisitor : public PathVisitor {
     uint32_t count = num / kMaxNumSegmentsPerInstance;
 
     for (uint32_t i = 0; i < count; i++) {
-      instances.push_back(
-          Instance{Vec4{p0, p1}, Vec4{p2, p3}, fan_center,
-                   static_cast<float>(i * kMaxNumSegmentsPerInstance),
-                   static_cast<float>(num)});
+      stage_buffer_->AppendInstance<Instance>(
+          Vec4{p0, p1}, Vec4{p2, p3}, fan_center,
+          static_cast<float>(i * kMaxNumSegmentsPerInstance),
+          static_cast<float>(num));
     }
 
     if (remain > 0) {
-      instances.push_back(
-          Instance{Vec4{p0, p1}, Vec4{p2, p3}, fan_center,
-                   static_cast<float>(count * kMaxNumSegmentsPerInstance),
-                   static_cast<float>(num)});
+      stage_buffer_->AppendInstance<Instance>(
+          Vec4{p0, p1}, Vec4{p2, p3}, fan_center,
+          static_cast<float>(count * kMaxNumSegmentsPerInstance),
+          static_cast<float>(num));
     }
   }
 
   void OnClose() override {}
 
-  const std::vector<Instance>& GetInstances() const { return instances; }
+  // const std::vector<Instance>& GetInstances() const { return instances; }
 
  private:
   Vec2 fan_center = {};
-  std::vector<Instance> instances;
+  // std::vector<Instance> instances;
   wangs_formula::VectorXform xform_;
   Vec2 arc_[4];
+  HWStageBuffer* stage_buffer_;
 };
 
 }  // namespace
@@ -337,14 +347,13 @@ void WGSLTessPathGeometry::PrepareCMD(Command* cmd, HWDrawContext* context,
 
   cmd->index_count = index_array.size();
 
-  TessPathVisitor path_visitor(transform);
+  TessPathVisitor path_visitor(transform, context->stageBuffer);
+  context->stageBuffer->BeginWritingInstance(
+      path_.CountVerbs() * sizeof(Instance), alignof(Instance));
   path_visitor.VisitPath(path_, true);
-
-  std::vector<Instance> instances = path_visitor.GetInstances();
-
-  cmd->instance_count = instances.size();
-  cmd->instance_buffer = context->stageBuffer->Push(
-      instances.data(), instances.size() * sizeof(Instance));
+  auto instance_buffer_view = context->stageBuffer->EndWritingInstance();
+  cmd->instance_count = instance_buffer_view.range / sizeof(Instance);
+  cmd->instance_buffer = instance_buffer_view;
 
   auto group = pipeline->GetBindingGroup(0);
 

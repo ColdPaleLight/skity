@@ -101,13 +101,16 @@ struct Instance {
 static_assert(sizeof(Instance) == 20 * sizeof(float));
 
 struct TessPathStrokeVisitor : public PathVisitor {
-  explicit TessPathStrokeVisitor(const Matrix& matrix, const Paint& paint)
+  explicit TessPathStrokeVisitor(const Matrix& matrix, const Paint& paint,
+                                 HWStageBuffer* stage_buffer)
       : PathVisitor(false, matrix),
+
         xform_(wangs_formula::VectorXform(matrix)),
         stroke_radius_(std::max(0.5f, paint.GetStrokeWidth() * 0.5f)),
         stroke_miter_(paint.GetStrokeMiter()),
         join_(paint.GetStrokeJoin()),
-        cap_(paint.GetStrokeCap()) {}
+        cap_(paint.GetStrokeCap()),
+        stage_buffer_(stage_buffer) {}
 
   void OnBeginPath() override {}
 
@@ -125,9 +128,10 @@ struct TessPathStrokeVisitor : public PathVisitor {
         AddCircleInstance(last_point_);
       }
     } else if (cap_ == Paint::kSquare_Cap) {
-      if (first_segment_index_ >= 0) {
+      if (first_segment_offset_ >= 0) {
         {  // start cap
-          Instance& instance = instances[first_segment_index_];
+          Instance& instance =
+              *stage_buffer_->ToInstance<Instance>(first_segment_offset_);
 
           Vec2 p0 = Vec2{instance.p0p1.x, instance.p0p1.y};
           Vec2 p1 = Vec2{instance.p0p1.z, instance.p0p1.w};
@@ -164,7 +168,7 @@ struct TessPathStrokeVisitor : public PathVisitor {
     only_has_move_to_ = true;
     first_point_ = p;
     last_point_ = p;
-    first_segment_index_ = -1;
+    first_segment_offset_ = -1;
     is_closed_ = false;
   }
 
@@ -174,9 +178,10 @@ struct TessPathStrokeVisitor : public PathVisitor {
       return;
     }
 
-    uint32_t segment_index = AddLineInstance(p0, p1, first_segment_index_ >= 0);
-    if (first_segment_index_ < 0) {
-      first_segment_index_ = segment_index;
+    uint32_t segment_offset =
+        AddLineInstance(p0, p1, first_segment_offset_ >= 0);
+    if (first_segment_offset_ < 0) {
+      first_segment_offset_ = segment_offset;
     }
     join_point_ = p0;
     last_point_ = p1;
@@ -220,8 +225,8 @@ struct TessPathStrokeVisitor : public PathVisitor {
     uint32_t remain = num % kMaxNumSegmentsPerInstance;
     uint32_t count = num / kMaxNumSegmentsPerInstance;
 
-    auto segment_index =
-        AddCubicInstance(p0, p1, p2, p3, 0.f, num, first_segment_index_ >= 0);
+    auto segment_offset =
+        AddCubicInstance(p0, p1, p2, p3, 0.f, num, first_segment_offset_ >= 0);
 
     for (uint32_t i = 1; i < count; i++) {
       AddCubicInstance(p0, p1, p2, p3,
@@ -235,8 +240,8 @@ struct TessPathStrokeVisitor : public PathVisitor {
                        num, false);
     }
 
-    if (first_segment_index_ < 0) {
-      first_segment_index_ = segment_index;
+    if (first_segment_offset_ < 0) {
+      first_segment_offset_ = segment_offset;
     }
 
     last_point_ = p3;
@@ -248,8 +253,9 @@ struct TessPathStrokeVisitor : public PathVisitor {
       return;
     }
 
-    if (first_segment_index_ >= 0) {
-      auto& instance = instances[first_segment_index_];
+    if (first_segment_offset_ >= 0) {
+      auto& instance =
+          *stage_buffer_->ToInstance<Instance>(first_segment_offset_);
       Vec2 p0 = Vec2{instance.p0p1.x, instance.p0p1.y};
       Vec2 p1 = Vec2{instance.p0p1.z, instance.p0p1.w};
       Vec2 p2 = Vec2{instance.p2p3.x, instance.p2p3.y};
@@ -275,8 +281,8 @@ struct TessPathStrokeVisitor : public PathVisitor {
 
  private:
   void AddCircleInstance(const Vec2& center) {
-    instances.emplace_back();
-    Instance& circle = instances.back();
+    auto offset = stage_buffer_->AppendInstance<Instance>();
+    Instance& circle = *stage_buffer_->ToInstance<Instance>(offset);
     circle.p0p1 = Vec4{center, center};
     circle.p2p3 = Vec4{center, center};
     circle.j0j1 = Vec4{center, center};
@@ -289,9 +295,12 @@ struct TessPathStrokeVisitor : public PathVisitor {
   }
 
   uint32_t AddLineInstance(const Vec2& p0, const Vec2& p1, bool needs_join) {
-    uint32_t result = instances.size();
-    instances.emplace_back();
-    Instance& line = instances.back();
+    // uint32_t result = instances.size();
+    // instances.emplace_back();
+    // Instance& line = instances.back();
+    auto offset = stage_buffer_->AppendInstance<Instance>();
+    Instance& line = *stage_buffer_->ToInstance<Instance>(offset);
+
     Vec2 ctrl1 = 2.f / 3.f * p0 + 1.f / 3.f * p1;
     Vec2 ctrl2 = 2.f / 3.f * p1 + 1.f / 3.f * p0;
     line.p0p1 = Vec4{p0, ctrl1};
@@ -306,15 +315,15 @@ struct TessPathStrokeVisitor : public PathVisitor {
     if (needs_join) {
       GenerateJoin(join_point_, p0, p1, line);
     }
-    return result;
+    return offset;
   }
 
   uint32_t AddCubicInstance(const Vec2& p0, const Vec2& p1, const Vec2& p2,
                             const Vec2& p3, float index_offset,
                             float num_segments, bool needs_join) {
-    uint32_t result = instances.size();
-    instances.emplace_back();
-    Instance& cubic = instances.back();
+    // uint32_t result = instances.size();
+    auto offset = stage_buffer_->AppendInstance<Instance>();
+    Instance& cubic = *stage_buffer_->ToInstance<Instance>(offset);
     cubic.p0p1 = Vec4{p0, p1};
     cubic.p2p3 = Vec4{p2, p3};
     cubic.j0j1 = Vec4{p0, p0};
@@ -328,7 +337,7 @@ struct TessPathStrokeVisitor : public PathVisitor {
     if (needs_join) {
       GenerateJoin(join_point_, p0, GetTangentPoint(p0, p1, p2, p3), cubic);
     }
-    return result;
+    return offset;
   }
 
   void GenMiterJoin(const Vec2& center, const Vec2& p1, const Vec2& p2,
@@ -417,13 +426,14 @@ struct TessPathStrokeVisitor : public PathVisitor {
   Vec2 last_point_;
   Vec2 join_point_;
   bool only_has_move_to_ = true;
-  int32_t first_segment_index_ = -1;
+  int32_t first_segment_offset_ = -1;
   bool is_closed_ = false;
 
   const float stroke_radius_;
   const float stroke_miter_;
   const Paint::Join join_;
   const Paint::Cap cap_;
+  HWStageBuffer* stage_buffer_;
 };
 
 }  // namespace
@@ -660,14 +670,16 @@ void WGSLTessPathStrokeGeometry::PrepareCMD(Command* cmd,
 
   cmd->index_count = index_array.size();
 
-  TessPathStrokeVisitor path_visitor(transform, paint_);
+  context->stageBuffer->BeginWritingInstance(
+      2 * path_.CountVerbs() * sizeof(Instance), alignof(Instance));
+
+  TessPathStrokeVisitor path_visitor(transform, paint_, context->stageBuffer);
   path_visitor.VisitPath(path_, false);
 
-  std::vector<Instance> instances = path_visitor.GetInstances();
+  auto instance_buffer_view = context->stageBuffer->EndWritingInstance();
 
-  cmd->instance_count = instances.size();
-  cmd->instance_buffer = context->stageBuffer->Push(
-      instances.data(), instances.size() * sizeof(Instance));
+  cmd->instance_count = instance_buffer_view.range / sizeof(Instance);
+  cmd->instance_buffer = instance_buffer_view;
 
   auto group = pipeline->GetBindingGroup(0);
 
