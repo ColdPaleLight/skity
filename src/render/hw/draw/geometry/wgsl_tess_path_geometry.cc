@@ -278,15 +278,15 @@ void WGSLTessPathGeometry::PrepareCMD(Command* cmd, HWDrawContext* context,
   // check the stencil cmd to determine if this is inside a coverage step
   // but this may be changed when implement draw call mergeing in dynamic
   // shader pipeline.
-  //  if (stencil_cmd) {
-  //    cmd->index_buffer = stencil_cmd->index_buffer;
-  //    cmd->vertex_buffer = stencil_cmd->vertex_buffer;
-  //    cmd->index_count = stencil_cmd->index_count;
-  //    cmd->uniform_bindings = stencil_cmd->uniform_bindings.Clone();
-  //    cmd->instance_count = stencil_cmd->instance_count;
-  //    cmd->instance_buffer = stencil_cmd->instance_buffer;
-  //    return;
-  //  }
+    if (stencil_cmd) {
+      cmd->index_buffer = stencil_cmd->index_buffer;
+      cmd->vertex_buffer = stencil_cmd->vertex_buffer;
+      cmd->index_count = stencil_cmd->index_count;
+      cmd->uniform_bindings = stencil_cmd->uniform_bindings.Clone();
+      cmd->instance_count = stencil_cmd->instance_count;
+      cmd->instance_buffer = stencil_cmd->instance_buffer;
+      return;
+    }
 
   if (cmd->pipeline == nullptr) {
     return;
