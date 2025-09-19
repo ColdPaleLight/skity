@@ -511,11 +511,11 @@ std::string WGSLTessPathStrokeGeometry::GenSourceWGSL() const {
           var index: f32 = input.index + index_offset;
           if is_circle == 1.0 {
             // 圆
-            var angle: f32 = index / num_segments * 3.1415926;
+            var angle: f32 = input.sign * index / num_segments * 3.1415926;
             var dir: vec2<f32> = vec2<f32>(cos(angle), sin(angle));
-            pos = p0 + input.sign * dir * stroke_radius;
+            pos = p0 + dir * stroke_radius;
           } else if index < 0.0 {
-            pos = get_join_pos(index, j0, j1, j2, j3);
+            pos = get_join_pos(i32(index), j0, j1, j2, j3);
           } else if index > num_segments {
             pos = p3;
           } else {

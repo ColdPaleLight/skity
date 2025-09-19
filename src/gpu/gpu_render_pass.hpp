@@ -222,6 +222,10 @@ struct Command {
 
     return true;
   }
+
+  bool IsInstanced() const {
+    return instance_count > 0u && instance_buffer.buffer != nullptr;
+  }
 };
 
 class GPURenderPass {

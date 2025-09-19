@@ -160,12 +160,12 @@ void GPURenderPassMTL::EncodeCommands(std::optional<GPUViewport> viewport,
 
     cache.SetBuffer(GPUShaderStage::kVertex, 0, command->vertex_buffer.offset,
                     static_cast<GPUBufferMTL*>(command->vertex_buffer.buffer)->GetMTLBuffer());
-    if (command->instance_buffer.buffer != nullptr) {
+    if (command->IsInstanced()) {
       cache.SetBuffer(GPUShaderStage::kVertex, 1, command->instance_buffer.offset,
                       static_cast<GPUBufferMTL*>(command->instance_buffer.buffer)->GetMTLBuffer());
     }
 
-    if (command->instance_buffer.buffer != nullptr) {
+    if (command->IsInstanced()) {
       [encoder_ drawIndexedPrimitives:MTLPrimitiveTypeTriangle
                            indexCount:command->index_count
                             indexType:MTLIndexTypeUInt32
