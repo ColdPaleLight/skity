@@ -428,6 +428,8 @@ HWDraw* SDFGlyphRun::Draw(Matrix transform, ArenaAllocator* arena_allocator,
     fragment->SetFilter(WGXFilterFragment::Make(paint_.GetColorFilter().get()));
   }
 
+  // TODO: Add advanced blending support
+
   // need to apply sdf scale to draw other than glyph
   HWDynamicSdfTextDraw* text_draw = arena_allocator->Make<HWDynamicSdfTextDraw>(
       Matrix(), paint_.GetBlendMode(), geometry, fragment);

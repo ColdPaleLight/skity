@@ -17,7 +17,7 @@
 
 namespace skity {
 
-GPUDeviceGL::GPUDeviceGL() = default;
+GPUDeviceGL::GPUDeviceGL() { SetCaps(std::make_unique<GPUCaps>()); }
 
 GPUDeviceGL::~GPUDeviceGL() = default;
 

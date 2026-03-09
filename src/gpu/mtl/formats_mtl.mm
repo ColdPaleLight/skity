@@ -161,7 +161,7 @@ constexpr MTLLoadAction ToMTLLoadAction(GPULoadOp op, bool need_resolve) {
     case GPULoadOp::kDontCare:
       return MTLLoadActionDontCare;
     case GPULoadOp::kLoad:
-      return need_resolve ? MTLLoadActionClear : MTLLoadActionLoad;
+      return need_resolve ? MTLLoadActionDontCare : MTLLoadActionLoad;
     case GPULoadOp::kClear:
       return MTLLoadActionClear;
   }

@@ -21,6 +21,13 @@ class GPUBlitPass {
 
   virtual void UploadBufferData(GPUBuffer* buffer, void* data, size_t size) = 0;
 
+  virtual void CopyTextureToTexture(
+      std::shared_ptr<GPUTexture> src, std::shared_ptr<GPUTexture> dst,
+      uint32_t src_offset_x, uint32_t src_offset_y, uint32_t dst_offset_x,
+      uint32_t dst_offset_y, uint32_t width, uint32_t height) {
+    // TODO: 实现blit pass
+  }
+
   virtual void End() = 0;
 };
 

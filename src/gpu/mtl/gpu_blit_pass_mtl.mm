@@ -60,6 +60,33 @@ void GPUBlitPassMTL::UploadBufferData(GPUBuffer* buffer, void* data, size_t size
                            size:size];
 }
 
+void GPUBlitPassMTL::CopyTextureToTexture(std::shared_ptr<GPUTexture> src,
+                                          std::shared_ptr<GPUTexture> dst, uint32_t src_offset_x,
+                                          uint32_t src_offset_y, uint32_t dst_offset_x,
+                                          uint32_t dst_offset_y, uint32_t width, uint32_t height) {
+  if (!src || !dst) {
+    LOGE("CopyTextureToTexture called with empty src or dst");
+    return;
+  }
+
+  if (width == 0 || height == 0) {
+    LOGE("CopyTextureToTexture called with empty width or height");
+    return;
+  }
+
+  id<MTLTexture> mtl_src_texture = static_cast<GPUTextureMTL*>(src.get())->GetMTLTexture();
+  id<MTLTexture> mtl_dst_texture = static_cast<GPUTextureMTL*>(dst.get())->GetMTLTexture();
+  [blit_encoder_ copyFromTexture:mtl_src_texture
+                     sourceSlice:0
+                     sourceLevel:0
+                    sourceOrigin:MTLOriginMake(src_offset_x, src_offset_y, 0)
+                      sourceSize:MTLSizeMake(width, height, 1)
+                       toTexture:mtl_dst_texture
+                destinationSlice:0
+                destinationLevel:0
+               destinationOrigin:MTLOriginMake(dst_offset_x, dst_offset_y, 0)];
+}
+
 void GPUBlitPassMTL::End() { [blit_encoder_ endEncoding]; }
 
 }  // namespace skity

@@ -88,12 +88,14 @@ struct GPUViewport {
   float max_depth;
 };
 
-struct GPUScissorRect {
+struct GPURegion {
   uint32_t x;
   uint32_t y;
   uint32_t width;
   uint32_t height;
 };
+
+using GPUScissorRect = GPURegion;
 
 enum class GPUIndexFormat { kUint16, kUint32 };
 

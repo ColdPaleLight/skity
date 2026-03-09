@@ -24,6 +24,12 @@ class GPUBlitPassMTL : public GPUBlitPass {
 
   void UploadBufferData(GPUBuffer* buffer, void* data, size_t size) override;
 
+  void CopyTextureToTexture(std::shared_ptr<GPUTexture> src,
+                            std::shared_ptr<GPUTexture> dst,
+                            uint32_t src_offset_x, uint32_t src_offset_y,
+                            uint32_t dst_offset_x, uint32_t dst_offset_y,
+                            uint32_t width, uint32_t height) override;
+
   void End() override;
 
  private:

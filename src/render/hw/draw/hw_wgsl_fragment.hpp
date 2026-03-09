@@ -5,9 +5,11 @@
 #ifndef SRC_RENDER_HW_DRAW_HW_WGSL_FRAGMENT_HPP
 #define SRC_RENDER_HW_DRAW_HW_WGSL_FRAGMENT_HPP
 
+#include <memory>
 #include <sstream>
 
 #include "src/gpu/gpu_render_pass.hpp"
+#include "src/render/hw/draw/wgx_advanced_blending.hpp"
 #include "src/render/hw/draw/wgx_filter.hpp"
 #include "src/render/hw/hw_pipeline_key.hpp"
 
@@ -173,6 +175,12 @@ class HWWGSLFragment {
 
   WGXFilterFragment* GetFilter() const { return filter_.get(); }
 
+  void SetAdvancedBlending(std::unique_ptr<WGXAdvancedBlending> blending) {
+    blending_ = std::move(blending);
+  }
+
+  WGXAdvancedBlending* GetAdvancedBlending() const { return blending_.get(); }
+
   constexpr bool IsSnippet() const { return (flags_ & Flags::kSnippet) > 0; }
 
   constexpr bool AffectsVertex() const {
@@ -181,6 +189,7 @@ class HWWGSLFragment {
 
  protected:
   std::unique_ptr<WGXFilterFragment> filter_ = {};
+  std::unique_ptr<WGXAdvancedBlending> blending_ = {};
 
  private:
   uint32_t flags_;

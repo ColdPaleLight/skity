@@ -4,8 +4,10 @@
 
 #include "src/render/hw/draw/hw_dynamic_path_draw.hpp"
 
+#include "skity/graphic/blend_mode.hpp"
 #include "src/effect/pixmap_shader.hpp"
 #include "src/gpu/gpu_context_impl.hpp"
+#include "src/graphic/blend_mode_priv.hpp"
 #include "src/logging.hpp"
 #include "src/render/hw/draw/fragment/wgsl_gradient_fragment.hpp"
 #include "src/render/hw/draw/fragment/wgsl_solid_color.hpp"
@@ -16,8 +18,10 @@
 #include "src/render/hw/draw/geometry/wgsl_tess_path_stroke_geometry.hpp"
 #include "src/render/hw/draw/step/color_step.hpp"
 #include "src/render/hw/draw/step/stencil_step.hpp"
+#include "src/render/hw/draw/wgx_advanced_blending.hpp"
 #include "src/render/hw/draw/wgx_filter.hpp"
 #include "src/render/hw/draw/wgx_utils.hpp"
+#include "src/render/hw/hw_draw.hpp"
 
 namespace skity {
 
@@ -39,6 +43,10 @@ void HWDynamicPathDraw::OnGenerateDrawStep(ArrayList<HWDrawStep *, 2> &steps,
 
   if (paint_.GetColorFilter()) {
     frag->SetFilter(WGXFilterFragment::Make(paint_.GetColorFilter().get()));
+  }
+  if (IsAdvancedBlendMode(paint_.GetBlendMode())) {
+    frag->SetAdvancedBlending(
+        WGXAdvancedBlending::Make(paint_.GetBlendMode(), GetDstReadStrategy()));
   }
 
   CoverageType coverage = CoverageType::kNone;
@@ -69,6 +77,10 @@ void HWDynamicPathDraw::OnGenerateDrawStep(ArrayList<HWDrawStep *, 2> &steps,
     if (paint_.GetColorFilter()) {
       fragment->SetFilter(
           WGXFilterFragment::Make(paint_.GetColorFilter().get()));
+    }
+    if (IsAdvancedBlendMode(paint_.GetBlendMode())) {
+      fragment->SetAdvancedBlending(WGXAdvancedBlending::Make(
+          paint_.GetBlendMode(), GetDstReadStrategy()));
     }
 
     steps.emplace_back(context->arena_allocator->Make<ColorAAStep>(

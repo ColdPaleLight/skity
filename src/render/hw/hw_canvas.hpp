@@ -13,6 +13,7 @@
 #include <string>
 #include <vector>
 
+#include "skity/graphic/blend_mode.hpp"
 #include "src/render/hw/hw_pipeline_lib.hpp"
 #include "src/render/hw/hw_stage_buffer.hpp"
 #include "src/render/hw/hw_static_buffer.hpp"
@@ -116,6 +117,8 @@ class HWCanvas : public Canvas {
     draw->SetLayerSpaceBounds(
         CurrentLayer()->CalculateLayerSpaceBounds(bounds, transform));
   }
+
+  void SetupDstReadStrategyForDraw(HWDraw* draw, BlendMode blend_mode);
 
   bool NeesOffScreenLayer(const Paint& paint) const;
 

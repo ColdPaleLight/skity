@@ -37,10 +37,11 @@ GLFWwindow* WindowMTL::CreateWindowHandler() {
   CAMetalLayer* metal_layer = [CAMetalLayer layer];
 
   metal_layer.device = MTLCreateSystemDefaultDevice();
-  metal_layer.opaque = YES;
+  metal_layer.opaque = NO;
   metal_layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
   metal_layer.contentsScale = [[NSScreen mainScreen] backingScaleFactor];
-  metal_layer.colorspace = CGColorSpaceCreateDeviceRGB();
+  NSColorSpace* cs = oc_window.colorSpace;
+  metal_layer.colorspace = cs.CGColorSpace;
   metal_layer.framebufferOnly = NO;
 
   oc_window.contentView.layer = metal_layer;
@@ -63,12 +64,14 @@ void WindowMTL::OnShow() {
   NSWindow* oc_window = glfwGetCocoaWindow(GetNativeWindow());
 
   CAMetalLayer* metal_layer = (CAMetalLayer*)oc_window.contentView.layer;
+  //  metal_layer.pixelFormat = MTLPixelFormatBGRA8Unorm_sRGB;
 
   skity::GPUSurfaceDescriptorMTL desc{};
   desc.backend = skity::GPUBackendType::kMetal;
   desc.width = metal_layer.frame.size.width;
   desc.height = metal_layer.frame.size.height;
   desc.content_scale = metal_layer.contentsScale;
+  // TODO sample_count = 4支持load action
   desc.sample_count = 4;
   desc.surface_type = skity::MTLSurfaceType::kLayer;
   desc.layer = metal_layer;

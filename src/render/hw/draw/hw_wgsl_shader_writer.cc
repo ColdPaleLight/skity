@@ -3,6 +3,7 @@
 #include "src/render/hw/draw/hw_wgsl_shader_writer.hpp"
 
 #include <sstream>
+#include <vector>
 
 #include "src/logging.hpp"
 #include "src/render/hw/hw_pipeline_key.hpp"
@@ -95,6 +96,9 @@ void HWWGSLShaderWriter::WriteFSFunctionsAndStructs(
   if (fragment_->GetFilter()) {
     ss << fragment_->GetFilter()->GenSourceWGSL();
   }
+  if (fragment_->GetAdvancedBlending()) {
+    ss << fragment_->GetAdvancedBlending()->GenSourceWGSL();
+  }
 }
 
 void HWWGSLShaderWriter::WriteFSUniforms(std::stringstream& ss) const {
@@ -104,13 +108,20 @@ void HWWGSLShaderWriter::WriteFSUniforms(std::stringstream& ss) const {
 
 void HWWGSLShaderWriter::WriteFSInput(std::stringstream& ss) const {
   DEBUG_CHECK(fragment_);
-  if (!HasVarings()) {
+  if (!HasVarings() && !(NeedsAdvancedBlending() && !NeedsFramebufferFetch())) {
     return;
   }
   ss << R"(
 struct FSInput {
 )";
+  // TODO 优化条件
+  if (NeedsAdvancedBlending() && !NeedsFramebufferFetch()) {
+    ss << R"(
+  @builtin(position) frag_pos: vec4<f32>,
+)";
+  }
   WriteVaryings(ss);
+
   ss << R"(
 };
 )";
@@ -118,19 +129,24 @@ struct FSInput {
 
 void HWWGSLShaderWriter::WriteFSMain(std::stringstream& ss) const {
   DEBUG_CHECK(fragment_);
-  if (HasVarings()) {
-    ss << R"(
-@fragment
-fn fs_main(input: FSInput) -> @location(0) vec4<f32> {
-  var color : vec4<f32>;
-)";
-  } else {
-    ss << R"(
-@fragment
-fn fs_main() -> @location(0) vec4<f32> {
-  var color : vec4<f32>;
-)";
+
+  ss << "@fragment\n";
+  ss << "fn fs_main(";
+  std::vector<std::string> fs_params;
+  if (HasVarings() || NeedsAdvancedBlending() && !NeedsFramebufferFetch()) {
+    fs_params.push_back("input: FSInput");
   }
+  if (NeedsFramebufferFetch()) {
+    fs_params.push_back("@color(0) dst_color: vec4<f32>");
+  };
+  if (!fs_params.empty()) {
+    ss << fs_params[0];
+    for (size_t i = 1; i < fs_params.size(); i++) {
+      ss << ", " << fs_params[i];
+    }
+  }
+  ss << ") -> @location(0) vec4<f32> {\n";
+  ss << "  var color : vec4<f32>;\n";
 
   fragment_->WriteFSMain(ss);
   if (fragment_->GetFilter()) {
@@ -146,6 +162,25 @@ fn fs_main() -> @location(0) vec4<f32> {
     geometry_->WriteFSAlphaMask(ss);
     ss << R"(
   color = color * mask_alpha;
+)";
+  }
+
+  if (NeedsFramebufferFetch()) {
+    ss << R"(
+  color = blending(color, dst_color);
+)";
+  } else if (NeedsAdvancedBlending()) {
+    ss << R"(
+  var dst_uv : vec2<f32> = input.frag_pos.xy * uDstUVMapping.xy + uDstUVMapping.zw;
+  var dst_color: vec4<f32> = textureSample(uDstTexture, uDstSampler, dst_uv);
+  if dst_uv.y < 0 {
+    dst_color = vec4<f32>(1.0, 0.0, 0.0, 1.0);
+    return dst_color;
+  } else if dst_uv.y > 1.0 {
+    dst_color = vec4<f32>(0.0, 1.0, 0.0, 1.0);
+    return dst_color;
+  }
+  color = blending(color, dst_color);
 )";
   }
 

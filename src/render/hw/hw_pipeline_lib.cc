@@ -19,6 +19,8 @@ static std::pair<GPUBlendFactor, GPUBlendFactor> get_gpu_blending(
     return {GPUBlendFactor::kZero, GPUBlendFactor::kZero};
   } else if (blend_mode == BlendMode::kSrc) {
     return {GPUBlendFactor::kOne, GPUBlendFactor::kZero};
+  } else if (blend_mode == BlendMode::kSrcOver) {
+    return {GPUBlendFactor::kOne, GPUBlendFactor::kOneMinusSrcAlpha};
   } else if (blend_mode == BlendMode::kDst) {
     return {GPUBlendFactor::kZero, GPUBlendFactor::kOne};
   } else if (blend_mode == BlendMode::kDstOver) {

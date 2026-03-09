@@ -116,9 +116,11 @@ using HWFunctionKey = HWPipelineKey;
 struct HWPipelineKey {
   uint64_t base_key;
   std::optional<std::vector<uint32_t>> compose_keys;
+  uint32_t advanced_blending = 0;
 
   bool operator==(const HWPipelineKey& other) const {
-    return base_key == other.base_key && compose_keys == other.compose_keys;
+    return base_key == other.base_key && compose_keys == other.compose_keys &&
+           advanced_blending == other.advanced_blending;
   }
 
   bool operator!=(const HWPipelineKey& other) const {
@@ -142,6 +144,7 @@ struct HWPipelineKey {
       case GPUShaderStage::kFragment:
         key.base_key = GetFragmentBaseKey();
         key.compose_keys = compose_keys;
+        key.advanced_blending = advanced_blending;
         break;
     }
     // Add stage to base key to make sure vertex and fragment key are

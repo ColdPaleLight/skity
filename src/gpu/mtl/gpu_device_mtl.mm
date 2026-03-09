@@ -2,6 +2,7 @@
 // Licensed under the Apache License Version 2.0 that can be found in the
 // LICENSE file in the root directory of this source tree.
 
+#include <Metal/Metal.h>
 #if !__has_feature(objc_arc)
 #error ARC must be enabled!
 #endif
@@ -42,12 +43,24 @@ static bool SupportsMemoryless(id<MTLDevice> device) {
   }
 }
 
+static bool SupportsFramebufferFetch(id<MTLDevice> device) {
+#if defined(SKITY_IOS) && TARGET_OS_SIMULATOR
+  return false;
+#else
+  return [device supportsFamily:MTLGPUFamilyApple2];
+#endif
+}
+
 GPUDeviceMTL::GPUDeviceMTL(id<MTLDevice> device, id<MTLCommandQueue> queue)
     : GPUDevice(),
       mtl_device_(device),
       mtl_command_queue_(queue),
       supports_memoryless_(SupportsMemoryless(device)),
-      max_texture_size_(0) {}
+      max_texture_size_(0) {
+  auto caps = std::make_unique<GPUCaps>();
+   caps->supports_framebuffer_fetch = SupportsFramebufferFetch(device);
+  SetCaps(std::move(caps));
+}
 
 GPUDeviceMTL::~GPUDeviceMTL() = default;
 

@@ -11,6 +11,9 @@
 #include <utility>
 #include <vector>
 
+#include "skity/graphic/image.hpp"
+#include "src/render/hw/draw/wgx_advanced_blending.hpp"
+#include "src/render/hw/hw_draw_pass.hpp"
 #include "src/render/hw/hw_render_target_cache.hpp"
 #include "src/render/hw/hw_static_buffer.hpp"
 #include "src/utils/arena_allocator.hpp"
@@ -34,6 +37,21 @@ enum class HWDrawType {
   kClip,
 };
 
+class HWDraw;
+
+struct HWDrawPass {
+  std::vector<HWDraw*> draw_ops;
+  bool needs_copy_to_dst = false;
+  GPURegion copy_to_dst_region = {};
+
+  std::shared_ptr<GPUTexture> dst_texture;
+  std::shared_ptr<GPUSampler> dst_sampler;
+
+  Vec4 dst_uv_mapping = {};
+
+  std::shared_ptr<DeferredTextureImage> resolve_image_for_load;
+};
+
 struct HWDrawContext {
   float ctx_scale = 1.f;
   HWStageBuffer* stageBuffer = nullptr;
@@ -47,6 +65,7 @@ struct HWDrawContext {
   ArenaAllocator* arena_allocator = nullptr;
   Vec2 scale = {1.f, 1.f};
   HWStaticBuffer* static_buffer = nullptr;
+  HWDrawPass* prev_draw_pass = nullptr;
 };
 
 enum HWDrawState : uint32_t {
@@ -137,6 +156,12 @@ class HWDraw {
 
   void SetClipDepth(uint32_t clip_depth) { clip_depth_ = clip_depth; }
 
+  DstReadStrategy GetDstReadStrategy() const { return dst_read_strategy_; }
+
+  void SetDstReadStrategy(DstReadStrategy strategy) {
+    dst_read_strategy_ = strategy;
+  }
+
  protected:
   virtual HWDrawState OnPrepare(HWDrawContext* context) = 0;
 
@@ -159,6 +184,7 @@ class HWDraw {
   Rect scissor_rect_ = {};
   Rect layer_space_bounds_ = Rect::MakeLTRB(-1E9F, -1E9F, 1E9F, 1E9F);
   HWDraw* clip_draw_;
+  DstReadStrategy dst_read_strategy_ = DstReadStrategy::kNonRequired;
 };
 
 }  // namespace skity
