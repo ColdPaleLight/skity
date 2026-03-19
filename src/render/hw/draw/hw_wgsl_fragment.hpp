@@ -5,10 +5,12 @@
 #ifndef SRC_RENDER_HW_DRAW_HW_WGSL_FRAGMENT_HPP
 #define SRC_RENDER_HW_DRAW_HW_WGSL_FRAGMENT_HPP
 
+#include <memory>
 #include <sstream>
 
 #include "src/gpu/gpu_render_pass.hpp"
 #include "src/render/hw/draw/wgx_filter.hpp"
+#include "src/render/hw/draw/wgx_programmable_blending.hpp"
 #include "src/render/hw/hw_pipeline_key.hpp"
 
 namespace skity {
@@ -171,6 +173,15 @@ class HWWGSLFragment {
     filter_->InitBinding(NextBindingIndex());
   }
 
+  void SetProgrammableBlending(
+      std::unique_ptr<WGXProgrammableBlending> blending) {
+    blending_ = std::move(blending);
+  }
+
+  WGXProgrammableBlending* GetProgrammableBlending() const {
+    return blending_ ? blending_.get() : nullptr;
+  }
+
   WGXFilterFragment* GetFilter() const { return filter_.get(); }
 
   constexpr bool IsSnippet() const { return (flags_ & Flags::kSnippet) > 0; }
@@ -181,6 +192,7 @@ class HWWGSLFragment {
 
  protected:
   std::unique_ptr<WGXFilterFragment> filter_ = {};
+  std::unique_ptr<WGXProgrammableBlending> blending_ = {};
 
  private:
   uint32_t flags_;
