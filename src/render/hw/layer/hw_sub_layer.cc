@@ -64,6 +64,9 @@ void HWSubLayer::OnGenerateCommand(HWDrawContext* context, HWDrawState state) {
 
 std::shared_ptr<GPURenderPass> HWSubLayer::OnBeginRenderPass(
     GPUCommandBuffer* cmd, bool force_load) {
+  if (force_load) {
+    render_pass_desc_.color_attachment.load_op = GPULoadOp::kLoad;
+  }
   return cmd->BeginRenderPass(render_pass_desc_);
 }
 

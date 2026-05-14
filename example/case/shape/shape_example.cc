@@ -4,29 +4,39 @@
 
 #include "case/shape/shape_example.hpp"
 
-#include "skity/graphic/blend_mode.hpp"
-#include "skity/graphic/color.hpp"
-
 namespace skity::example::shape {
 
 void draw_shapes(skity::Canvas* canvas) {
-  Paint paint;
-  paint.SetColor(Color_WHITE);
-  canvas->DrawPaint(paint);
-  canvas->Save();
+  skity::Paint paint;
+  paint.SetColor(skity::ColorSetARGB(255, 250, 250, 250));
+  canvas->DrawRect(skity::Rect::MakeWH(128.f, 128.f), paint);
 
-  paint.SetColor(ColorSetARGB(255, 233, 30, 99));
-  // canvas->SaveLayer(Rect::MakeLTRB(0, 0, 300, 300), Paint{});
-  canvas->DrawRect(Rect::MakeLTRB(100, 100, 200, 200), paint);
+  canvas->SaveLayer(skity::Rect::MakeWH(128.f, 128.f), skity::Paint{});
 
-  // Paint save_paint;
-  paint.SetBlendMode(BlendMode::kDarken);
-  // canvas->SaveLayer(Rect::MakeLTRB(0, 0, 300, 300), save_paint);
+  paint.SetBlendMode(skity::BlendMode::kSrcOver);
+  paint.SetColor(skity::ColorSetARGB(255, 233, 30, 99));
+  canvas->DrawRect(skity::Rect::MakeLTRB(12.f, 12.f, 116.f, 116.f), paint);
 
-  paint.SetColor(ColorSetARGB(255, 22, 150, 243));
-  canvas->DrawRect(Rect::MakeLTRB(150, 150, 250, 250), paint);
+  // skity::Path clip_path;
+  // clip_path.AddCircle(64.f, 64.f, 36.f);
+  // canvas->Save();
+  // // canvas->ClipPath(clip_path);
+
+  paint.SetBlendMode(skity::BlendMode::kOverlay);
+  paint.SetColor(skity::ColorSetARGB(220, 22, 150, 243));
+  canvas->DrawRect(skity::Rect::MakeLTRB(22.f, 22.f, 84.f, 84.f), paint);
+  // canvas->DrawCircle(53.f, 53.f, 36.f, paint);
+
+  // paint.SetBlendMode(skity::BlendMode::kHardLight);
+  // paint.SetColor(skity::ColorSetARGB(210, 76, 175, 80));
+  // canvas->DrawRect(skity::Rect::MakeLTRB(50.f, 50.f, 122.f, 122.f), paint);
+
   // canvas->Restore();
-  // canvas->Restore();
+  canvas->Restore();
+
+  // Paint paint;
+  // paint.SetColor(Color_WHITE);
+  // canvas->DrawPaint(paint);
 
   // paint.SetColor(Color_RED);
   // paint.SetStrokeWidth(20);
@@ -117,7 +127,7 @@ void draw_shapes(skity::Canvas* canvas) {
   // path.LineTo(10, 40);
   // path.Close();
   // canvas->DrawPath(path, paint);
-  canvas->Restore();
+  // canvas->Restore();
 }
 
 }  // namespace skity::example::shape

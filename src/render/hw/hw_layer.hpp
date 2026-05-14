@@ -93,6 +93,8 @@ class HWLayer : public HWDraw {
 
   ArenaAllocator* GetArenaAllocator() const { return arena_allocator_; }
 
+  void SetRTOrigin(LayerRTOrigin origin) { rt_origin_ = origin; }
+
  protected:
   HWDrawState OnPrepare(skity::HWDrawContext* context) override;
 
@@ -137,8 +139,6 @@ class HWLayer : public HWDraw {
    * re-rendering the resolve texture back into the MSAA attachment.
    */
   HWDraw* CreateEmulatedLoadDraw(HWDrawPass* draw_pass);
-
-  void SetRTOrigin(LayerRTOrigin origin) { rt_origin_ = origin; }
 
  private:
   void FlushPendingClip();

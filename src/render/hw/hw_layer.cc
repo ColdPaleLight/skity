@@ -301,8 +301,8 @@ std::shared_ptr<Shader> HWLayer::CreateDrawLayerShader(
                                  bounds.Height() / image->Height());
   }
 
-  return Shader::MakeShader(image, SamplingOptions{}, TileMode::kClamp,
-                            TileMode::kClamp, local_matrix);
+  return Shader::MakeShader(image, SamplingOptions{}, TileMode::kDecal,
+                            TileMode::kDecal, local_matrix);
 }
 
 HWDraw* HWLayer::CreateEmulatedLoadDraw(HWDrawPass* draw_pass) {

@@ -796,6 +796,11 @@ HWLayer* HWCanvas::GenLayer(const Paint& paint, Rect layer_bounds,
       surface_->GetGPUContext()->IsEnableMergingDrawCall());
   SetupDstReadStrategyForDraw(layer, paint.GetBlendMode());
 
+  // TODO 用于GL测试
+  if (surface_->GetGPUContext()->GetBackendType() == GPUBackendType::kOpenGL) {
+    layer->SetRTOrigin(LayerRTOrigin::kBottomLeft);
+  }
+
   return layer;
 }
 
