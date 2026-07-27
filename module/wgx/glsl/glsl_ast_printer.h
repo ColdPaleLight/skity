@@ -6,7 +6,9 @@
 
 #include <wgsl_cross.h>
 
+#include <array>
 #include <sstream>
+#include <string>
 #include <string_view>
 #include <unordered_map>
 
@@ -85,6 +87,8 @@ class AstPrinter : public ast::AstVisitor {
   const semantic::Symbol* FindDeclSymbol(
       const ast::Identifier* declaration) const;
 
+  std::string BuildExpressionHelpers() const;
+
   void WriteType(const ast::Type& type);
 
   void WriteAttribute(ast::Variable* variable, bool input);
@@ -134,6 +138,8 @@ class AstPrinter : public ast::AstVisitor {
   uint32_t texture_index_ = 0;
   bool needs_fb_fetch_ = false;
   bool needs_advanced_blend_ = false;
+  std::array<bool, 6> comparison_helpers_ = {};
+  bool needs_select_helper_ = false;
 };
 
 }  // namespace glsl

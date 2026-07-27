@@ -4,8 +4,52 @@
 
 #include "glsl/glsl_ast_printer.h"
 
+#include <array>
+
 namespace wgx {
 namespace glsl {
+
+namespace {
+
+constexpr std::string_view kExpressionHelperPlaceholder =
+    "/* wgx expression helpers */";
+
+struct ComparisonInfo {
+  const char* helper_name;
+  const char* vector_builtin;
+  size_t index;
+};
+
+bool GetComparisonInfo(ast::BinaryOp op, ComparisonInfo* info) {
+  if (info == nullptr) {
+    return false;
+  }
+
+  switch (op) {
+    case ast::BinaryOp::kEqual:
+      *info = {"wgx_equal", "equal", 0};
+      return true;
+    case ast::BinaryOp::kNotEqual:
+      *info = {"wgx_not_equal", "notEqual", 1};
+      return true;
+    case ast::BinaryOp::kLessThan:
+      *info = {"wgx_less_than", "lessThan", 2};
+      return true;
+    case ast::BinaryOp::kGreaterThan:
+      *info = {"wgx_greater_than", "greaterThan", 3};
+      return true;
+    case ast::BinaryOp::kLessThanEqual:
+      *info = {"wgx_less_than_equal", "lessThanEqual", 4};
+      return true;
+    case ast::BinaryOp::kGreaterThanEqual:
+      *info = {"wgx_greater_than_equal", "greaterThanEqual", 5};
+      return true;
+    default:
+      return false;
+  }
+}
+
+}  // namespace
 
 static std::string skip_glsl_keywords(const std::string_view& name) {
   if (name == "out" || name == "in" || name == "main" || name == "input" ||
@@ -214,12 +258,18 @@ void AstPrinter::Visit(ast::Expression* expression) {
         ss_ << "))";
         return;
       } else if (call->ident->ident->name == "select") {
-        ss_ << "(";
-        call->args[2]->Accept(this);
-        ss_ << " ? ";
-        call->args[1]->Accept(this);
-        ss_ << " : ";
+        if (call->args.size() != 3) {
+          has_error_ = true;
+          return;
+        }
+
+        needs_select_helper_ = true;
+        ss_ << "wgx_select(";
         call->args[0]->Accept(this);
+        ss_ << ", ";
+        call->args[1]->Accept(this);
+        ss_ << ", ";
+        call->args[2]->Accept(this);
         ss_ << ")";
         return;
       }
@@ -285,12 +335,19 @@ void AstPrinter::Visit(ast::Expression* expression) {
 
     case ast::ExpressionType::kBinaryExp: {
       auto* binary = static_cast<ast::BinaryExp*>(expression);
+      ComparisonInfo comparison;
+      if (GetComparisonInfo(binary->op, &comparison)) {
+        comparison_helpers_[comparison.index] = true;
+        ss_ << comparison.helper_name << "(";
+        binary->lhs->Accept(this);
+        ss_ << ", ";
+        binary->rhs->Accept(this);
+        ss_ << ")";
+        break;
+      }
+
       binary->lhs->Accept(this);
-
-      ss_ << " ";
-      ss_ << ast::op_to_string(binary->op);
-      ss_ << " ";
-
+      ss_ << " " << ast::op_to_string(binary->op) << " ";
       binary->rhs->Accept(this);
     } break;
 
@@ -708,6 +765,8 @@ bool AstPrinter::Write() {
     ss_ << std::endl;
   }
 
+  ss_ << kExpressionHelperPlaceholder << std::endl;
+
   // write input of this entry point function
   WriteInput();
 
@@ -759,7 +818,100 @@ bool AstPrinter::Write() {
   return true;
 }
 
-std::string AstPrinter::GetResult() const { return ss_.str(); }
+std::string AstPrinter::BuildExpressionHelpers() const {
+  std::stringstream helpers;
+  constexpr std::array<const char*, 3> kScalarTypes = {"float", "int", "uint"};
+  constexpr std::array<const char*, 3> kVectorPrefixes = {"vec", "ivec",
+                                                          "uvec"};
+  constexpr std::array<const char*, 4> kComponents = {"x", "y", "z", "w"};
+  constexpr std::array<ast::BinaryOp, 6> kComparisonOps = {
+      ast::BinaryOp::kEqual,         ast::BinaryOp::kNotEqual,
+      ast::BinaryOp::kLessThan,      ast::BinaryOp::kGreaterThan,
+      ast::BinaryOp::kLessThanEqual, ast::BinaryOp::kGreaterThanEqual,
+  };
+
+  for (size_t op_index = 0; op_index < comparison_helpers_.size(); ++op_index) {
+    if (!comparison_helpers_[op_index]) {
+      continue;
+    }
+
+    ComparisonInfo comparison;
+    GetComparisonInfo(kComparisonOps[op_index], &comparison);
+    for (const char* type : kScalarTypes) {
+      helpers << "bool " << comparison.helper_name << "(" << type << " lhs, "
+              << type << " rhs) { return lhs "
+              << ast::op_to_string(kComparisonOps[op_index]) << " rhs; }\n";
+    }
+    if (op_index <= 1) {
+      helpers << "bool " << comparison.helper_name
+              << "(bool lhs, bool rhs) { return lhs "
+              << ast::op_to_string(kComparisonOps[op_index]) << " rhs; }\n";
+    }
+
+    for (const char* prefix : kVectorPrefixes) {
+      for (size_t width = 2; width <= 4; ++width) {
+        helpers << "bvec" << width << " " << comparison.helper_name << "("
+                << prefix << width << " lhs, " << prefix << width
+                << " rhs) { return " << comparison.vector_builtin
+                << "(lhs, rhs); }\n";
+      }
+    }
+    if (op_index <= 1) {
+      for (size_t width = 2; width <= 4; ++width) {
+        helpers << "bvec" << width << " " << comparison.helper_name << "(bvec"
+                << width << " lhs, bvec" << width << " rhs) { return "
+                << comparison.vector_builtin << "(lhs, rhs); }\n";
+      }
+    }
+    helpers << "\n";
+  }
+
+  if (needs_select_helper_) {
+    constexpr std::array<const char*, 4> kSelectScalarTypes = {"float", "int",
+                                                               "uint", "bool"};
+    for (const char* type : kSelectScalarTypes) {
+      helpers << type << " wgx_select(" << type << " false_value, " << type
+              << " true_value, bool condition) { return condition ? "
+                 "true_value : false_value; }\n";
+    }
+
+    constexpr std::array<const char*, 4> kSelectPrefixes = {"vec", "ivec",
+                                                            "uvec", "bvec"};
+    for (const char* prefix : kSelectPrefixes) {
+      for (size_t width = 2; width <= 4; ++width) {
+        helpers << prefix << width << " wgx_select(" << prefix << width
+                << " false_value, " << prefix << width
+                << " true_value, bool condition) { return condition ? "
+                   "true_value : false_value; }\n";
+        helpers << prefix << width << " wgx_select(" << prefix << width
+                << " false_value, " << prefix << width << " true_value, bvec"
+                << width << " condition) { return " << prefix << width << "(";
+        for (size_t component = 0; component < width; ++component) {
+          if (component != 0) {
+            helpers << ", ";
+          }
+          helpers << "condition." << kComponents[component] << " ? true_value."
+                  << kComponents[component] << " : false_value."
+                  << kComponents[component];
+        }
+        helpers << "); }\n";
+      }
+    }
+    helpers << "\n";
+  }
+
+  return helpers.str();
+}
+
+std::string AstPrinter::GetResult() const {
+  std::string result = ss_.str();
+  auto helper_pos = result.find(kExpressionHelperPlaceholder);
+  if (helper_pos != std::string::npos) {
+    result.replace(helper_pos, kExpressionHelperPlaceholder.size(),
+                   BuildExpressionHelpers());
+  }
+  return result;
+}
 
 void AstPrinter::WriteType(const ast::Type& type) {
   if (type.expr == nullptr) {
