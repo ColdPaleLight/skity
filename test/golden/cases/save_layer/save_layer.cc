@@ -8,6 +8,7 @@
 #include <skity/recorder/picture_recorder.hpp>
 
 #include "common/golden_test_check.hpp"
+#include "common/golden_test_env.hpp"
 #include "skity/effect/image_filter.hpp"
 #include "skity/geometry/camera.hpp"
 #include "skity/geometry/matrix.hpp"
@@ -192,4 +193,42 @@ TEST(SaveLayerGolden, PerspectiveZ0Plane) {
       skity::testing::PathList{.cpu_tess_path = golden_path.c_str(),
                                .gpu_tess_path = golden_path.c_str(),
                                .coverage_aa_path = coverage_aa_path.c_str()}));
+}
+
+TEST(SaveLayerGolden, SingularMatrixDoesNotCrash) {
+  const float values[9] = {
+      1.f, 1.f, 0.f,  //
+      1.f, 1.f, 0.f,  //
+      0.f, 0.f, 1.f,  //
+  };
+  skity::Matrix singular_matrix;
+  singular_matrix.Set9(values);
+  ASSERT_FALSE(singular_matrix.InvertZ0Plane(nullptr));
+
+  auto* env = skity::testing::GoldenTestEnv::GetInstance();
+  ASSERT_NE(env, nullptr);
+  auto texture =
+      env->RenderToTexture(64, 64, [singular_matrix](skity::Canvas* canvas) {
+        canvas->SetMatrix(singular_matrix);
+        const int save_count = canvas->GetSaveCount();
+        canvas->SaveLayer(skity::Rect::MakeWH(32.f, 32.f), skity::Paint{});
+
+        skity::Paint paint;
+        paint.SetColor(skity::Color_RED);
+        canvas->SetMatrix(skity::Matrix::Translate(8.f, 8.f));
+        canvas->DrawRect(skity::Rect::MakeWH(24.f, 24.f), paint);
+
+        paint.SetColor(skity::Color_BLUE);
+        canvas->ResetMatrix();
+        canvas->DrawCircle(24.f, 24.f, 12.f, paint);
+        canvas->Restore();
+        EXPECT_EQ(canvas->GetSaveCount(), save_count);
+
+        paint.SetColor(skity::Color_GREEN);
+        canvas->ResetMatrix();
+        canvas->DrawRect(skity::Rect::MakeXYWH(48.f, 48.f, 8.f, 8.f), paint);
+      });
+
+  ASSERT_NE(texture, nullptr);
+  EXPECT_NE(texture->ReadPixels(), nullptr);
 }

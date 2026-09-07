@@ -15,11 +15,13 @@ class LayerState {
  public:
   explicit LayerState(const Matrix& world_matrix)
       : world_matrix_(world_matrix) {
-    elements_.emplace_back(Matrix{});
+    elements_.emplace_back(Matrix{}, world_matrix);
   }
   struct Element {
-    explicit Element(const Matrix& matrix) : matrix(matrix) {}
-    Matrix matrix;  // local to layer
+    Element(const Matrix& local_matrix, const Matrix& total_matrix)
+        : local_matrix(local_matrix), total_matrix(total_matrix) {}
+    Matrix local_matrix;  // local to the active layer
+    Matrix total_matrix;  // local to the root canvas
   };
   void Save();
   void Restore();
@@ -36,11 +38,12 @@ class LayerState {
   void ResetMatrix();
 
   const Matrix& GetWorldMatrix() const { return world_matrix_; }
-  const Matrix& CurrentMatrix() const { return elements_.back().matrix; }
+  const Matrix& CurrentMatrix() const { return CurrentElement().local_matrix; }
 
-  Matrix GetTotalMatrix() const { return GetWorldMatrix() * CurrentMatrix(); }
+  Matrix GetTotalMatrix() const { return CurrentElement().total_matrix; }
 
  private:
+  Element& CurrentElement() { return elements_.back(); }
   const Element& CurrentElement() const { return elements_.back(); }
 
   std::vector<Element> elements_;

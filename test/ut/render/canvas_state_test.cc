@@ -91,3 +91,26 @@ TEST(CanvasState, CurrentLayerMatrix) {
                 skity::Matrix::RotateDeg(20, skity::Vec2{1.0, 3.0}));
   state.Restore();
 }
+
+TEST(CanvasState, SetAndResetMatrixInsideSaveLayer) {
+  skity::CanvasState state;
+  const skity::Matrix layer_world_matrix =
+      skity::Matrix::Translate(10, 20) * skity::Matrix::Scale(2, 3);
+  state.Concat(layer_world_matrix);
+  state.SaveLayer(skity::Rect::MakeLTRB(0, 0, 100, 100), skity::Paint{});
+
+  const skity::Matrix matrix = skity::Matrix::Translate(30, 40);
+  state.SetMatrix(matrix);
+  EXPECT_EQ(state.GetTotalMatrix(), matrix);
+
+  skity::Matrix world_to_layer;
+  ASSERT_TRUE(layer_world_matrix.InvertZ0Plane(&world_to_layer));
+  EXPECT_EQ(state.CurrentLayerMatrix(), world_to_layer * matrix);
+
+  state.ResetMatrix();
+  EXPECT_TRUE(state.GetTotalMatrix().IsIdentity());
+  EXPECT_EQ(state.CurrentLayerMatrix(), world_to_layer);
+
+  state.Restore();
+  EXPECT_EQ(state.GetTotalMatrix(), layer_world_matrix);
+}
