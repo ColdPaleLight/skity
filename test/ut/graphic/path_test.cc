@@ -1843,3 +1843,88 @@ TEST(Path, GetType_AfterModifications) {
   path.AddRoundRect(skity::Rect::MakeLTRB(10, 20, 100, 200), 10, 10);
   EXPECT_EQ(path.GetIsAType(), skity::Path::IsAType::kGeneral);
 }
+
+TEST(Path, ResetClearsStateAndRetainsStorage) {
+  skity::Path path;
+  path.MoveTo(10, 20)
+      .LineTo(30, 40)
+      .QuadTo(50, 60, 70, 80)
+      .ConicTo(90, 100, 110, 120, 0.5f)
+      .CubicTo(130, 140, 150, 160, 170, 180)
+      .Close()
+      .MoveTo(200, 210);
+  path.SetFillType(skity::Path::PathFillType::kEvenOdd);
+  path.SetFirstDirection(skity::Path::Direction::kCW);
+  EXPECT_FALSE(path.GetBounds().IsEmpty());
+  path.SetConvexityType(skity::Path::ConvexityType::kConcave);
+  const auto* points = path.Points();
+  const auto* verbs = path.VerbsBegin();
+  const auto* weights = path.ConicWeights();
+
+  EXPECT_EQ(&path.Reset(), &path);
+  skity::Path empty;
+  EXPECT_TRUE(path.IsEmpty());
+  EXPECT_EQ(path.CountPoints(), 0u);
+  EXPECT_EQ(path.CountVerbs(), 0u);
+  EXPECT_EQ(path.GetFillType(), empty.GetFillType());
+  EXPECT_EQ(path.GetFirstDirection(), empty.GetFirstDirection());
+  EXPECT_EQ(path.GetConvexityType(), empty.GetConvexityType());
+  EXPECT_EQ(path.IsFinite(), empty.IsFinite());
+  EXPECT_EQ(path.GetBounds(), empty.GetBounds());
+  EXPECT_EQ(path.GetSegmentMasks(), 0u);
+  EXPECT_EQ(path.GetIsAType(), skity::Path::IsAType::kGeneral);
+  EXPECT_FALSE(path.Contains(20, 30));
+  skity::Point pts[4];
+  EXPECT_EQ(skity::Path::RawIter(path).Next(pts), skity::Path::Verb::kDone);
+  EXPECT_EQ(path.Points(), points);
+  EXPECT_EQ(path.VerbsBegin(), verbs);
+  EXPECT_EQ(path.ConicWeights(), weights);
+
+  // An implicit move must start at the origin, not the previous contour.
+  path.ConicTo(2, 4, 6, 8, 0.75f).Close();
+  skity::Path::RawIter iter(path);
+  EXPECT_EQ(iter.Next(pts), skity::Path::Verb::kMove);
+  EXPECT_EQ(pts[0], skity::Point(0, 0, 0, 1));
+  EXPECT_EQ(iter.Next(pts), skity::Path::Verb::kConic);
+  EXPECT_FLOAT_EQ(iter.ConicWeight(), 0.75f);
+  EXPECT_EQ(iter.Next(pts), skity::Path::Verb::kClose);
+  EXPECT_EQ(iter.Next(pts), skity::Path::Verb::kDone);
+  EXPECT_EQ(path.GetBounds(), skity::Rect::MakeLTRB(0, 0, 6, 8));
+  EXPECT_EQ(path.GetSegmentMasks(), skity::Path::SegmentMask::kConic);
+  EXPECT_EQ(path.Points(), points);
+  EXPECT_EQ(path.VerbsBegin(), verbs);
+  EXPECT_EQ(path.ConicWeights(), weights);
+}
+
+TEST(Path, ResetClearsNonFiniteAndSimpleShapeState) {
+  skity::Path path;
+  path.LineTo(1, 1).MoveTo(std::numeric_limits<float>::infinity(), 1);
+  EXPECT_FALSE(path.IsFinite());
+  path.Reset();
+  EXPECT_TRUE(path.IsFinite());
+  EXPECT_TRUE(path.GetBounds().IsEmpty());
+
+  for (auto type : {skity::Path::IsAType::kRect, skity::Path::IsAType::kOval,
+                    skity::Path::IsAType::kSimpleRRect}) {
+    const auto bounds = skity::Rect::MakeLTRB(10, 20, 110, 220);
+    if (type == skity::Path::IsAType::kRect) {
+      path.AddRect(bounds);
+    } else if (type == skity::Path::IsAType::kOval) {
+      path.AddOval(bounds);
+    } else {
+      path.AddRoundRect(bounds, 5, 10);
+    }
+    ASSERT_EQ(path.GetIsAType(), type);
+    EXPECT_EQ(path.GetBounds(), bounds);
+    path.Reset();
+    EXPECT_EQ(path.GetIsAType(), skity::Path::IsAType::kGeneral);
+    EXPECT_FALSE(path.IsSimpleRRect(nullptr));
+    EXPECT_FALSE(path.IsRect(nullptr));
+    EXPECT_TRUE(path.GetBounds().IsEmpty());
+  }
+  path.AddRoundRect(skity::Rect::MakeLTRB(0, 0, 40, 60), 2, 3);
+  skity::RRect rrect;
+  ASSERT_TRUE(path.IsSimpleRRect(&rrect));
+  EXPECT_EQ(rrect.GetSimpleRadii(), skity::Vec2(2, 3));
+  EXPECT_TRUE(path.Contains(20, 30));
+}
