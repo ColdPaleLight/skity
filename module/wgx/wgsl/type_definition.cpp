@@ -90,23 +90,35 @@ std::unique_ptr<TypeDefinition> CreateTypeDefinition(const ast::Type& type,
     }
   } else if (type.IsArray()) {
     const auto& args = type.expr->ident->args;
-    if (args.size() < 2) {
+    if (args.size() != 1 && args.size() != 2) {
       return {};
     }
 
     auto element_type = args[0];
-    auto element_count = args[1];
 
-    if (element_type->GetType() != ast::ExpressionType::kIdentifier ||
-        element_count->GetType() != ast::ExpressionType::kIntLiteral) {
+    if (element_type->GetType() != ast::ExpressionType::kIdentifier) {
+      return {};
+    }
+
+    ast::Type et{static_cast<ast::IdentifierExp*>(element_type)};
+
+    if (args.size() == 1) {
+      auto element = CreateTypeDefinition(et, func, layout);
+      if (!element) {
+        return {};
+      }
+      return std::make_unique<RuntimeArrayDefinition>(std::move(element),
+                                                      layout);
+    }
+
+    auto element_count = args[1];
+    if (element_count->GetType() != ast::ExpressionType::kIntLiteral) {
       return {};
     }
 
     size_t count = static_cast<ast::IntLiteralExp*>(element_count)->value;
 
     std::vector<std::unique_ptr<TypeDefinition>> elements{count};
-
-    ast::Type et{static_cast<ast::IdentifierExp*>(element_type)};
 
     for (size_t i = 0; i < count; ++i) {
       elements[i] = CreateTypeDefinition(et, func, layout);
@@ -292,6 +304,59 @@ void CommonArray::WriteToBuffer(void* buffer, size_t offset) const {
   for (uint32_t i = 0; i < count; i++) {
     elements_[i]->WriteToBuffer(buffer, offset + i * stride_of_element_);
   }
+}
+
+RuntimeArrayDefinition::RuntimeArrayDefinition(
+    std::unique_ptr<TypeDefinition> element, MemoryLayout layout)
+    : ArrayDefinition(), element_(std::move(element)) {
+  if (!element_) {
+    return;
+  }
+
+  size_of_element_ = element_->size;
+  size_t align_of_element = element_->alignment;
+  size_t align_of_array = layout == MemoryLayout::kStd140
+                              ? round_up(16, align_of_element)
+                              : align_of_element;
+
+  stride_of_element_ = round_up(align_of_array, size_of_element_);
+
+  this->size = 0;
+  this->alignment = align_of_array;
+
+  this->name = "array<";
+  this->name += element_->name;
+  this->name += ">";
+}
+
+TypeDefinition* RuntimeArrayDefinition::GetElementAt(uint32_t index) {
+  if (index >= count) {
+    return nullptr;
+  }
+
+  return element_.get();
+}
+
+bool RuntimeArrayDefinition::SetData(const void* data, size_t size) {
+  if (data == nullptr || stride_of_element_ == 0 ||
+      size % stride_of_element_ != 0) {
+    return false;
+  }
+
+  raw_data_.resize(size);
+  std::memcpy(raw_data_.data(), data, size);
+  this->count = size / stride_of_element_;
+  this->size = size;
+  return true;
+}
+
+void RuntimeArrayDefinition::WriteToBuffer(void* buffer, size_t offset) const {
+  if (raw_data_.empty()) {
+    return;
+  }
+
+  std::memcpy(static_cast<uint8_t*>(buffer) + offset, raw_data_.data(),
+              raw_data_.size());
 }
 
 }  // namespace wgx

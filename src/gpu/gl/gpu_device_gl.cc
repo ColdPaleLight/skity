@@ -18,9 +18,26 @@
 namespace skity {
 
 GPUDeviceGL::GPUDeviceGL() {
+  InitGLVersion();
+
   auto gpu_caps = std::make_unique<GPUCaps>();
   gpu_caps->supports_framebuffer_fetch =
       GLInterface::GlobalInterface()->ext_shader_framebuffer_fetch;
+  // SSBO is core in GL 4.3+ / GLES 3.1+. Older drivers may also expose
+  // GL_ARB_shader_storage_buffer_object as an extension.
+  bool gl_supports_ssbo =
+      is_gles_ ? (gl_version_major_ > 3 ||
+                  (gl_version_major_ == 3 && gl_version_minor_ >= 1))
+               : (gl_version_major_ > 4 ||
+                  (gl_version_major_ == 4 && gl_version_minor_ >= 3));
+  if (!gl_supports_ssbo) {
+    gl_supports_ssbo =
+        GLInterface::GlobalInterface()->arb_shader_storage_buffer_object;
+  }
+  // glBindBufferRange is required to bind SSBO slot.
+  gpu_caps->supports_readonly_storage_buffer =
+      gl_supports_ssbo &&
+      GLInterface::GlobalInterface()->fBindBufferRange != nullptr;
   InitCaps(std::move(gpu_caps));
 }
 
@@ -32,10 +49,6 @@ std::unique_ptr<GPUBuffer> GPUDeviceGL::CreateBuffer(GPUBufferUsageMask usage) {
 
 std::shared_ptr<GPUShaderFunction> GPUDeviceGL::CreateShaderFunction(
     const GPUShaderFunctionDescriptor& desc) {
-  if (gl_version_major_ == 0 && gl_version_minor_ == 0) {
-    InitGLVersion();
-  }
-
   if (desc.source_type == GPUShaderSourceType::kWGX) {
     return CreateShaderFunctionFromModule(desc);
   }

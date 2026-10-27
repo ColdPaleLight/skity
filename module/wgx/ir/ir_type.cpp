@@ -100,7 +100,10 @@ TypeId TypeTable::GetMatrixType(TypeId component_type, uint32_t rows,
 }
 
 TypeId TypeTable::GetArrayType(TypeId element_type, uint32_t count) {
-  if (element_type == kInvalidTypeId || count == 0) {
+  // count == 0 represents a runtime-sized array (only valid in storage
+  // buffers). Such an array is layout-equivalent to a fixed-sized array of
+  // unknown length and never has a well-defined total size.
+  if (element_type == kInvalidTypeId) {
     return kInvalidTypeId;
   }
 

@@ -22,7 +22,8 @@ namespace skity {
 
 void UploadBindGroup(uint32_t group, const wgx::BindGroupEntry* entry,
                      Command* cmd, HWDrawContext* ctx) {
-  if (entry->type != wgx::BindingType::kUniformBuffer) {
+  if (entry->type != wgx::BindingType::kUniformBuffer &&
+      entry->type != wgx::BindingType::kStorageBuffer) {
     return;
   }
 
@@ -40,6 +41,9 @@ void UploadBindGroup(uint32_t group, const wgx::BindGroupEntry* entry,
           allocation.offset,
           allocation.size,
       },
+      entry->type == wgx::BindingType::kStorageBuffer
+          ? GPUBufferBindingType::kReadOnlyStorage
+          : GPUBufferBindingType::kUniform,
   });
 }
 
@@ -74,6 +78,87 @@ void UploadBindGroup(uint32_t group, const wgx::BindGroupEntry* entry,
       entry->name,
       texture,
   });
+}
+
+void BindStorageBuffer(uint32_t group, const wgx::BindGroupEntry* entry,
+                       Command* cmd, GPUBufferView buffer_view) {
+  if (entry == nullptr || buffer_view.buffer == nullptr) {
+    return;
+  }
+
+  cmd->uniform_bindings.emplace_back(UniformBinding{
+      ToShaderStage(entry->stage),
+      entry->index,
+      group,
+      entry->binding,
+      entry->name,
+      buffer_view,
+      GPUBufferBindingType::kReadOnlyStorage,
+  });
+}
+
+const char* HWDrawDataWGSL() {
+  return R"(
+struct HWDrawData {
+  transform_id: u32,
+  clip_depth: f32,
+  padding: vec2<f32>,
+};
+@group(0) @binding(2) var<storage, read> draw_data: array<HWDrawData>;
+@group(0) @binding(3) var<storage, read> transforms: array<mat4x4<f32>>;
+)";
+}
+
+bool BindFrameStorageBuffers(uint32_t group,
+                             const wgx::BindGroupEntry* draw_data_entry,
+                             const wgx::BindGroupEntry* transform_entry,
+                             Command* cmd, HWDrawContext* context,
+                             const Matrix& fallback_transform,
+                             float fallback_clip_depth,
+                             const char* draw_data_type_name) {
+  if (draw_data_entry == nullptr ||
+      draw_data_entry->type_definition == nullptr ||
+      draw_data_entry->type_definition->name != draw_data_type_name) {
+    return false;
+  }
+
+  bool draw_data_bound = false;
+  if (context->frame_storage_buffer != nullptr) {
+    auto draw_data_buffer =
+        context->frame_storage_buffer->GetDrawDataBuffer(context->stageBuffer);
+    if (draw_data_buffer.buffer != nullptr) {
+      BindStorageBuffer(group, draw_data_entry, cmd, draw_data_buffer);
+      draw_data_bound = true;
+    }
+  }
+
+  if (!draw_data_bound) {
+    HWDrawData draw_data{};
+    draw_data.transform_id = 0;
+    draw_data.clip_depth = fallback_clip_depth;
+    draw_data_entry->type_definition->SetData(&draw_data, sizeof(HWDrawData));
+    UploadBindGroup(group, draw_data_entry, cmd, context);
+  }
+
+  if (transform_entry == nullptr ||
+      transform_entry->type_definition == nullptr ||
+      transform_entry->type_definition->name != "array<mat4x4<f32>>") {
+    return false;
+  }
+
+  if (context->frame_storage_buffer != nullptr) {
+    auto transform_buffer =
+        context->frame_storage_buffer->GetTransformBuffer(context->stageBuffer);
+    if (transform_buffer.buffer != nullptr) {
+      BindStorageBuffer(group, transform_entry, cmd, transform_buffer);
+      return true;
+    }
+  }
+
+  transform_entry->type_definition->SetData(&fallback_transform,
+                                            sizeof(Matrix));
+  UploadBindGroup(group, transform_entry, cmd, context);
+  return true;
 }
 
 GPUShaderStageMask ToShaderStage(wgx::ShaderStage stage) {

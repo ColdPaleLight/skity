@@ -5,6 +5,7 @@
 #ifndef SRC_RENDER_HW_DRAW_GEOMETRY_WGSL_TESS_PATH_FILL_GEOMETRY_HPP
 #define SRC_RENDER_HW_DRAW_GEOMETRY_WGSL_TESS_PATH_FILL_GEOMETRY_HPP
 
+#include <cstdint>
 #include <skity/graphic/paint.hpp>
 #include <skity/graphic/path.hpp>
 
@@ -16,7 +17,9 @@ namespace skity {
 
 class WGSLTessPathFillGeometry : public HWWGSLGeometry {
  public:
-  WGSLTessPathFillGeometry(const Path& path, const Paint& paint);
+  WGSLTessPathFillGeometry(const Path& path, const Paint& paint,
+                           bool use_storage_buffer = false,
+                           uint32_t draw_id = 0);
 
   ~WGSLTessPathFillGeometry() override = default;
 
@@ -44,6 +47,8 @@ class WGSLTessPathFillGeometry : public HWWGSLGeometry {
  private:
   const Path& path_;
   const Paint& paint_;
+  bool use_storage_buffer_ = false;
+  uint32_t draw_id_ = 0;
 };
 
 }  // namespace skity

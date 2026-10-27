@@ -566,9 +566,13 @@ ir::TypeId Lowerer::ResolveType(const ast::Type& type) {
 
     if (ident->ident->name == "array") {
       const auto& args = ident->ident->args;
-      if (args.size() != 2u || args[0] == nullptr || args[1] == nullptr ||
-          args[0]->GetType() != ast::ExpressionType::kIdentifier ||
-          args[1]->GetType() != ast::ExpressionType::kIntLiteral) {
+      if (args.empty() || args.size() > 2u || args[0] == nullptr ||
+          args[0]->GetType() != ast::ExpressionType::kIdentifier) {
+        return ir::kInvalidTypeId;
+      }
+      if (args.size() == 2u &&
+          (args[1] == nullptr ||
+           args[1]->GetType() != ast::ExpressionType::kIntLiteral)) {
         return ir::kInvalidTypeId;
       }
 
@@ -579,13 +583,18 @@ ir::TypeId Lowerer::ResolveType(const ast::Type& type) {
         return ir::kInvalidTypeId;
       }
 
-      auto* count_lit = static_cast<ast::IntLiteralExp*>(args[1]);
-      if (count_lit->value <= 0) {
-        return ir::kInvalidTypeId;
+      // `array<T>` (no size) is a runtime-sized array. We encode it with a
+      // count of 0 in the IR; only valid in storage buffer bindings.
+      uint32_t count = 0;
+      if (args.size() == 2u) {
+        auto* count_lit = static_cast<ast::IntLiteralExp*>(args[1]);
+        if (count_lit->value <= 0) {
+          return ir::kInvalidTypeId;
+        }
+        count = static_cast<uint32_t>(count_lit->value);
       }
 
-      return type_table_->GetArrayType(element_type,
-                                       static_cast<uint32_t>(count_lit->value));
+      return type_table_->GetArrayType(element_type, count);
     }
 
     if (const ast::StructDecl* struct_decl = ResolveStructDecl(type);

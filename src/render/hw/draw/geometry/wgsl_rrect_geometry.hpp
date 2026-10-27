@@ -16,7 +16,8 @@ namespace skity {
 
 class WGSLRRectGeometry : public HWWGSLGeometry {
  public:
-  explicit WGSLRRectGeometry(const std::vector<BatchGroup<RRect>>& batch_group);
+  explicit WGSLRRectGeometry(const std::vector<BatchGroup<RRect>>& batch_group,
+                             bool use_storage_buffer = false);
 
   ~WGSLRRectGeometry() override = default;
 
@@ -49,6 +50,7 @@ class WGSLRRectGeometry : public HWWGSLGeometry {
 
  private:
   const std::vector<BatchGroup<RRect>>& batch_group_;
+  bool use_storage_buffer_ = false;
 };
 
 }  // namespace skity

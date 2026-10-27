@@ -42,7 +42,7 @@ std::vector<GPUVertexBufferLayout> InitVertexBufferLayout() {
       },
       // instance buffer
       GPUVertexBufferLayout{
-          22 * sizeof(float),
+          26 * sizeof(float),
           GPUVertexStepMode::kInstance,
           {
               GPUVertexAttribute{
@@ -80,6 +80,11 @@ std::vector<GPUVertexBufferLayout> InitVertexBufferLayout() {
                   18 * sizeof(float),
                   7,
               },
+              GPUVertexAttribute{
+                  GPUVertexFormat::kFloat32x4,
+                  22 * sizeof(float),
+                  8,
+              },
           },
       },
   };
@@ -95,16 +100,18 @@ struct Instance {
   Vec4 transform0;
   Vec2 transform1;
   Vec4 color;
+  Vec4 draw_info;
 };
 
-static_assert(sizeof(Instance) == 88);
+static_assert(sizeof(Instance) == 104);
 
 }  // namespace
 
 WGSLRRectGeometry::WGSLRRectGeometry(
-    const std::vector<BatchGroup<RRect>>& batch_group)
+    const std::vector<BatchGroup<RRect>>& batch_group, bool use_storage_buffer)
     : HWWGSLGeometry(Flags::kSnippet | Flags::kAffectsFragment),
-      batch_group_(batch_group) {}
+      batch_group_(batch_group),
+      use_storage_buffer_(use_storage_buffer) {}
 
 std::vector<GPUVertexBufferLayout> WGSLRRectGeometry::GetBufferLayout() {
   return InitVertexBufferLayout();
@@ -138,7 +145,13 @@ fn in_corner_region(pos_to_corner: vec2<f32>, corner_sign: vec2<f32>) -> bool {
 }
 
 void WGSLRRectGeometry::WriteVSUniforms(std::stringstream& ss) const {
-  ss << "@group(0) @binding(0) var<uniform> common_slot  : CommonSlot;\n";
+  if (!use_storage_buffer_) {
+    ss << "@group(0) @binding(0) var<uniform> common_slot  : CommonSlot;\n";
+    return;
+  }
+
+  ss << "@group(0) @binding(0) var<uniform> common_slot: CommonSlot;\n";
+  ss << HWDrawDataWGSL();
 }
 
 void WGSLRRectGeometry::WriteVSInput(std::stringstream& ss) const {
@@ -152,6 +165,7 @@ struct VSInput {
   @location(5)  transform0    :   vec4<f32>,
   @location(6)  transform1    :   vec2<f32>,
   @location(7)  color         :   vec4<f32>,
+  @location(8)  draw_info     :   vec4<f32>,
 };
 )";
 }
@@ -204,6 +218,17 @@ void WGSLRRectGeometry::WriteVSMain(std::stringstream& ss) const {
 
   local_pos = pos;
   var fs_packed : vec4<f32> = vec4<f32>(local_pos, f32(corner_idx), region);
+)";
+  if (use_storage_buffer_) {
+    ss << R"(
+  let draw_id: u32 = u32(input.draw_info.x);
+  let data: HWDrawData = draw_data[draw_id];
+  let transform: mat4x4<f32> = transforms[data.transform_id];
+  var out_pos: vec4<f32> = common_slot.mvp * transform * vec4<f32>(pos, 0.0, 1.0);
+  output.pos = vec4<f32>(out_pos.x, out_pos.y, data.clip_depth * out_pos.w, out_pos.w);
+)";
+  } else {
+    ss << R"(
   var transform: mat4x4<f32> = mat4x4<f32>(
     input.transform0.x, input.transform0.y, 0.0, 0.0,
     input.transform0.z, input.transform0.w, 0.0, 0.0, 
@@ -213,6 +238,9 @@ void WGSLRRectGeometry::WriteVSMain(std::stringstream& ss) const {
   var common_slot_clone: CommonSlot = common_slot;
   common_slot_clone.userTransform = transform;
   output.pos = get_vertex_position(pos, common_slot_clone);
+)";
+  }
+  ss << R"(
   output.v_fs_packed = fs_packed;
   output.v_rect = input.rect;
   output.v_radii = input.radii;
@@ -395,7 +423,8 @@ void WGSLRRectGeometry::PrepareCMD(Command* cmd, HWDrawContext* context,
         Vec4{transform.GetScaleX(), transform.GetSkewY(), transform.GetSkewX(),
              transform.GetScaleY()},
         Vec2{transform.GetTranslateX(), transform.GetTranslateY()},
-        Vec4{paint.GetColor4f()}};
+        Vec4{paint.GetColor4f()},
+        Vec4{static_cast<float>(element.draw_id), 0.f, 0.f, 0.f}};
     context->stageBuffer->AppendInstance<Instance>(instance);
   }
   auto instance_buffer_view = context->stageBuffer->EndWritingInstance();
@@ -413,11 +442,20 @@ void WGSLRRectGeometry::PrepareCMD(Command* cmd, HWDrawContext* context,
   // bind CommonSlot
   auto common_slot = group->GetEntry(0);
 
-  if (!SetupCommonInfo(common_slot, context->mvp, transform, clip_depth)) {
+  if (!SetupCommonInfo(common_slot, context->mvp,
+                       use_storage_buffer_ ? Matrix{} : transform,
+                       use_storage_buffer_ ? 0.f : clip_depth)) {
     return;
   }
 
   UploadBindGroup(group->group, common_slot, cmd, context);
+
+  if (!use_storage_buffer_) {
+    return;
+  }
+
+  BindFrameStorageBuffers(group->group, group->GetEntry(2), group->GetEntry(3),
+                          cmd, context, transform, clip_depth);
 }
 
 namespace {

@@ -240,6 +240,7 @@ HWDrawState HWLayer::OnPrepare(HWDrawContext* context) {
   sub_context.total_clip_depth = state_.GetDrawDepth() + 1;
   sub_context.arena_allocator = context->arena_allocator;
   sub_context.scale = scale_;
+  sub_context.frame_storage_buffer = context->frame_storage_buffer;
 
   for (auto pass : draw_passes_) {
     CollectClipReplayDraws(pass);
@@ -299,6 +300,7 @@ void HWLayer::OnGenerateCommand(HWDrawContext* context, HWDrawState state) {
   sub_context.total_clip_depth = state_.GetDrawDepth() + 1;
   sub_context.arena_allocator = context->arena_allocator;
   sub_context.scale = scale_;
+  sub_context.frame_storage_buffer = context->frame_storage_buffer;
 
   for (auto pass : draw_passes_) {
     const HWDraw* emulated_load_draw =

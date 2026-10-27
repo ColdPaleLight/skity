@@ -208,6 +208,23 @@ bool IsTextureOrSamplerTypeName(const std::string_view& name) {
          name == "sampler" || name == "sampler_comparison";
 }
 
+bool IsRuntimeArrayType(const ast::Type& type) {
+  return type.expr != nullptr && type.expr->ident != nullptr &&
+         type.expr->ident->name == "array" &&
+         type.expr->ident->args.size() == 1;
+}
+
+bool IsStorageBufferVar(const ast::Var* var) {
+  if (var == nullptr || var->address_space == nullptr ||
+      var->address_space->GetType() != ast::ExpressionType::kIdentifier) {
+    return false;
+  }
+
+  auto* address_space = static_cast<ast::IdentifierExp*>(var->address_space);
+  return address_space->ident != nullptr &&
+         address_space->ident->name == "storage";
+}
+
 bool IsBuiltinFunctionName(const std::string_view& name) {
   for (const char* builtin : kBuiltinFunctionNames) {
     if (name == builtin) {
@@ -625,6 +642,10 @@ void Resolver::Visit(ast::StructMember* struct_member) {
   }
 
   ResolveType(struct_member->type);
+  if (IsRuntimeArrayType(struct_member->type)) {
+    ReportTypeError("array",
+                    "runtime array is only supported as a storage var");
+  }
 }
 
 void Resolver::Visit(ast::Variable* variable) {
@@ -663,6 +684,14 @@ void Resolver::Visit(ast::Variable* variable) {
         ReportTypeError("var", "var access mode must be read/write/read_write");
       }
     }
+
+    if (IsRuntimeArrayType(var->type) && !IsStorageBufferVar(var)) {
+      ReportTypeError("array",
+                      "runtime array is only supported as a storage var");
+    }
+  } else if (IsRuntimeArrayType(variable->type)) {
+    ReportTypeError("array",
+                    "runtime array is only supported as a storage var");
   }
 }
 
@@ -907,8 +936,8 @@ bool Resolver::ValidateMatrixType(std::string_view type_name,
 
 bool Resolver::ValidateArrayType(std::string_view type_name,
                                  const std::vector<ast::Expression*>& args) {
-  if (args.size() != 2) {
-    ReportTypeError(type_name, "array expects 2 template arguments");
+  if (args.size() != 1 && args.size() != 2) {
+    ReportTypeError(type_name, "array expects 1 or 2 template arguments");
     return false;
   }
 
@@ -920,6 +949,10 @@ bool Resolver::ValidateArrayType(std::string_view type_name,
   ast::Type elem_type;
   elem_type.expr = elem;
   ResolveType(elem_type);
+
+  if (args.size() == 1) {
+    return true;
+  }
 
   if (args[1] == nullptr ||
       args[1]->GetType() != ast::ExpressionType::kIntLiteral) {

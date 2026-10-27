@@ -302,7 +302,7 @@ fn get_vertex_position(a_pos: vec2<f32>, cs: CommonSlot) -> vec4<f32> {
   var pos: vec4<f32> = cs.mvp * cs.userTransform * vec4<f32>(a_pos, 0.0, 1.0);
   return vec4<f32>(pos.x, pos.y, cs.extraInfo[0] * pos.w, pos.w);
 }
-  
+
 @group(0) @binding(0) var<uniform> common_slot: CommonSlot;
 
 struct VSInput {
@@ -312,6 +312,7 @@ struct VSInput {
   @location(3) fan_center: vec2<f32>,
   @location(4) index_offset: f32,
   @location(5) num_segments: f32,
+  @location(6) draw_info: vec4<f32>,
 };
 
 struct VSOutput {
@@ -401,6 +402,7 @@ struct VSInput {
   @location(4) j0j1 : vec4<f32>,
   @location(5) j2j3 : vec4<f32>,
   @location(6) pack : vec4<f32>,
+  @location(7) draw_info : vec4<f32>,
 };
 
 struct VSOutput {
@@ -907,6 +909,7 @@ struct VSInput {
   @location(5)  transform0    :   vec4<f32>,
   @location(6)  transform1    :   vec2<f32>,
   @location(7)  color         :   vec4<f32>,
+  @location(8)  draw_info     :   vec4<f32>,
 };
 
 struct VSOutput {
@@ -1157,6 +1160,7 @@ struct VSInput {
   @location(5)  transform0    :   vec4<f32>,
   @location(6)  transform1    :   vec2<f32>,
   @location(7)  color         :   vec4<f32>,
+  @location(8)  draw_info     :   vec4<f32>,
 };
 
 struct VSOutput {
@@ -1471,6 +1475,7 @@ struct VSInput {
   @location(5)  transform0    :   vec4<f32>,
   @location(6)  transform1    :   vec2<f32>,
   @location(7)  color         :   vec4<f32>,
+  @location(8)  draw_info     :   vec4<f32>,
 };
 
 struct VSOutput {
@@ -1870,6 +1875,45 @@ TEST(ShaderWriter, TessPathStrokeWithSolidColor) {
             skity::MakeFunctionBaseKey(skity::HWFragmentKeyType::kSolid));
   ASSERT_TRUE(CompareShader(vs, GetTessPathStrokeVS()));
   ASSERT_TRUE(CompareShader(fs, GetSolidColorFS()));
+}
+
+TEST(ShaderWriter, TessPathStrokeWithStorageBufferAndLinearGradient) {
+  auto path = MakePath();
+  skity::Paint paint;
+  skity::Vec4 colors[] = {
+      skity::Vec4{0.f, 0.f, 1.f, 1.f},
+      skity::Vec4{1.f, 0.f, 0.f, 1.f},
+  };
+  std::vector<skity::Point> pts = {
+      skity::Point{0.f, 0.f, 0.f, 1.f},
+      skity::Point{256.f, 0.f, 0.f, 1.f},
+  };
+  paint.SetShader(skity::Shader::MakeLinear(pts.data(), colors, nullptr, 2));
+
+  skity::WGSLTessPathStrokeGeometry geometry{path, paint, true};
+  skity::Shader::GradientInfo gradient_info;
+  auto gradient_type = paint.GetShader()->AsGradient(&gradient_info);
+  skity::WGSLGradientFragment fragment{gradient_info, gradient_type,
+                                       paint.GetAlphaF(), skity::Matrix{}};
+  skity::HWWGSLShaderWriter shader_writer{&geometry, &fragment};
+
+  std::string vs = shader_writer.GenVSSourceWGSL();
+
+  ASSERT_NE(vs.find("@group(0) @binding(1) var<uniform> inv_matrix"),
+            std::string::npos);
+  ASSERT_NE(vs.find("@group(0) @binding(2) var<storage, read> draw_data"),
+            std::string::npos);
+  ASSERT_NE(vs.find("@group(0) @binding(3) var<storage, read> transforms"),
+            std::string::npos);
+  ASSERT_NE(vs.find("draw_data: array<TessPathStrokeDrawData>;"),
+            std::string::npos);
+  ASSERT_NE(vs.find("transforms: array<mat4x4<f32>>;"), std::string::npos);
+  ASSERT_NE(vs.find("@location(7) draw_info"), std::string::npos);
+  ASSERT_NE(vs.find("transform_id: u32"), std::string::npos);
+  ASSERT_NE(vs.find("clip_depth: f32"), std::string::npos);
+  ASSERT_NE(vs.find("draw_data[draw_id]"), std::string::npos);
+  ASSERT_NE(vs.find("transforms[data.transform_id]"), std::string::npos);
+  ASSERT_NE(vs.find("data.clip_depth * out_pos.w"), std::string::npos);
 }
 
 TEST(ShaderWriter, PathWithLinearGradient) {

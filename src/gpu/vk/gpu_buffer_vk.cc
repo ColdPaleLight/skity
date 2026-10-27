@@ -22,6 +22,10 @@ VkBufferUsageFlags ConvertGPUBufferUsageMask(GPUBufferUsageMask usage) {
     flags |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
   }
 
+  if ((usage & GPUBufferUsage::kStorageBuffer) != 0) {
+    flags |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+  }
+
   if ((usage & GPUBufferUsage::kIndexBuffer) != 0) {
     flags |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
   }

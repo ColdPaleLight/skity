@@ -66,6 +66,7 @@ struct WGX_API SpirvOptions {};
 enum class BindingType {
   kUndefined,
   kUniformBuffer,
+  kStorageBuffer,
   kTexture,
   kSampler,
 };

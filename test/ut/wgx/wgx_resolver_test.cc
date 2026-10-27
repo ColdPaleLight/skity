@@ -338,8 +338,21 @@ fn vs_main() -> @builtin(position) vec4<f32> {
 )");
 
   ASSERT_FALSE(result.diagnostics.empty());
-  EXPECT_NE(result.diagnostics.front().message.find("array expects 2"),
+  EXPECT_NE(result.diagnostics.front().message.find("runtime array"),
             std::string::npos);
+}
+
+TEST_F(ResolverTest, AcceptsRuntimeArrayStorageBuffer) {
+  auto result = Resolve(R"(
+@group(0) @binding(0) var<storage, read> data: array<vec4<f32>>;
+
+@vertex
+fn vs_main() -> @builtin(position) vec4<f32> {
+  return data[0];
+}
+)");
+
+  EXPECT_TRUE(result.diagnostics.empty());
 }
 
 TEST_F(ResolverTest, ReportsUnresolvedArrayElementType) {

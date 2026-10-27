@@ -146,17 +146,22 @@ void GPURenderPassGL::EncodeCommands(std::optional<GPUViewport> viewport,
 
     // Bind uniforms
     for (auto& binding : command->uniform_bindings) {
-      if (!pipeline->SupportBindingSlotInShader()) {
+      if (binding.type == GPUBufferBindingType::kUniform &&
+          !pipeline->SupportBindingSlotInShader()) {
         GL_CALL(UniformBlockBinding, pipeline->GetProgramId(),
                 pipeline->GetProgram()->GetUniformBlockIndex(binding.name),
                 binding.index);
       }
 
+      uint32_t target = binding.type == GPUBufferBindingType::kReadOnlyStorage
+                            ? GL_SHADER_STORAGE_BUFFER
+                            : GL_UNIFORM_BUFFER;
+
       BindBuffer(
-          GL_UNIFORM_BUFFER,
+          target,
           static_cast<GPUBufferGL*>(binding.buffer.buffer)->GetBufferId());
 
-      GL_CALL(BindBufferRange, GL_UNIFORM_BUFFER, binding.index,
+      GL_CALL(BindBufferRange, target, binding.index,
               static_cast<GPUBufferGL*>(binding.buffer.buffer)->GetBufferId(),
               binding.buffer.offset, binding.buffer.range);
     }

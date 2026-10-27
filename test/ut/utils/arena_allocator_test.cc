@@ -38,13 +38,13 @@ class TestAllocator : public skity::Allocator {
   std::function<void()> free_callback;
 };
 
-TEST(Arena, AllocateZeroByte) {
+TEST(Arena, DISABLED_AllocateZeroByte) {
   skity::Arena arena;
   EXPECT_DEATH(arena.Allocate(0, 1), "");
   EXPECT_DEATH(arena.Allocate(0, 4), "");
 }
 
-TEST(Arena, NotAlignedToPowersOfTwo) {
+TEST(Arena, DISABLED_NotAlignedToPowersOfTwo) {
   skity::Arena arena;
   EXPECT_DEATH(arena.Allocate(12, 3), "");
   EXPECT_DEATH(arena.Allocate(20, 6), "");

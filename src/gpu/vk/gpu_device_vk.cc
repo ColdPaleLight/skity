@@ -6,6 +6,10 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdlib>
+#include <cstring>
+#include <fstream>
+#include <string>
 
 #include "src/gpu/vk/gpu_buffer_vk.hpp"
 #include "src/gpu/vk/gpu_command_buffer_vk.hpp"
@@ -47,6 +51,8 @@ VkDescriptorType ToVkDescriptorType(wgx::BindingType type) {
   switch (type) {
     case wgx::BindingType::kUniformBuffer:
       return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    case wgx::BindingType::kStorageBuffer:
+      return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     case wgx::BindingType::kTexture:
       return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
     case wgx::BindingType::kSampler:
@@ -459,6 +465,10 @@ GPUDeviceVK::GPUDeviceVK(std::shared_ptr<const VulkanContextState> state)
     : state_(std::move(state)) {
   auto gpu_caps = std::make_unique<GPUCaps>();
   gpu_caps->supports_framebuffer_fetch = false;
+  // Storage buffers (and storage buffer reads from any shader stage) are part
+  // of the Vulkan 1.0 baseline that every conformant implementation must
+  // support, so we can unconditionally enable read-only storage buffers here.
+  gpu_caps->supports_readonly_storage_buffer = true;
   InitCaps(std::move(gpu_caps));
 
   if (state_ == nullptr || state_->GetPhysicalDevice() == VK_NULL_HANDLE ||
@@ -469,8 +479,15 @@ GPUDeviceVK::GPUDeviceVK(std::shared_ptr<const VulkanContextState> state)
   VkPhysicalDeviceProperties properties = {};
   state_->InstanceFns().vkGetPhysicalDeviceProperties(
       state_->GetPhysicalDevice(), &properties);
-  buffer_alignment_ =
-      static_cast<uint32_t>(properties.limits.minUniformBufferOffsetAlignment);
+  // The stage buffer is a single VkBuffer that may be bound at runtime as
+  // either a uniform buffer or a (read-only) storage buffer. Both bindings use
+  // dynamic-style offsets that must satisfy the corresponding alignment
+  // requirement, so we pick the larger of the two to keep all offsets legal.
+  uint32_t uniform_alignment = static_cast<uint32_t>(
+      properties.limits.minUniformBufferOffsetAlignment);
+  uint32_t storage_alignment = static_cast<uint32_t>(
+      properties.limits.minStorageBufferOffsetAlignment);
+  buffer_alignment_ = std::max(uniform_alignment, storage_alignment);
   if (buffer_alignment_ == 0) {
     buffer_alignment_ = 256;
   }
@@ -612,6 +629,28 @@ std::shared_ptr<GPUShaderFunction> GPUDeviceVK::CreateShaderFunctionFromModule(
       desc.error_callback("WGX translate to SPIR-V failed");
     }
     return {};
+  }
+
+  // Optional debug aid: when SKITY_DUMP_SPIRV is set, dump every emitted
+  // SPIR-V binary so it can be fed to spirv-cross / spirv-val out-of-process.
+  // Set SKITY_DUMP_SPIRV to a directory path, e.g.
+  //   SKITY_DUMP_SPIRV=/tmp/skity_spirv ./vk_app
+  if (const char* dump_dir = std::getenv("SKITY_DUMP_SPIRV");
+      dump_dir != nullptr && std::strlen(dump_dir) > 0) {
+    std::string label = source->module->GetLabel();
+    if (label.empty()) label = "unknown";
+    std::string filename = std::string(dump_dir) + "/" + label + "_" +
+                           source->entry_point + ".spv";
+    std::ofstream out(filename, std::ios::binary | std::ios::trunc);
+    if (out) {
+      out.write(reinterpret_cast<const char*>(wgx_result.spirv.data()),
+                static_cast<std::streamsize>(wgx_result.spirv.size() *
+                                             sizeof(uint32_t)));
+      LOGI("Dumped SPIR-V to {}", filename);
+    } else {
+      LOGE("Failed to dump SPIR-V to {} (does the directory exist?)",
+           filename);
+    }
   }
 
   VkShaderModuleCreateInfo create_info = {};

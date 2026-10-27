@@ -43,7 +43,7 @@ std::vector<GPUVertexBufferLayout> InitVertexBufferLayout() {
       },
       // instance
       GPUVertexBufferLayout{
-          12 * sizeof(float),
+          16 * sizeof(float),
           GPUVertexStepMode::kInstance,
           {
               GPUVertexAttribute{
@@ -71,6 +71,11 @@ std::vector<GPUVertexBufferLayout> InitVertexBufferLayout() {
                   11 * sizeof(float),
                   5,
               },
+              GPUVertexAttribute{
+                  GPUVertexFormat::kFloat32x4,
+                  12 * sizeof(float),
+                  6,
+              },
           },
       },
   };
@@ -80,34 +85,37 @@ std::vector<GPUVertexBufferLayout> InitVertexBufferLayout() {
 
 struct Instance {
   Instance(const Vec4& p0p1, const Vec4& p2p3, const Vec2& fan_center,
-           float index_offset, float num_segments)
+           float index_offset, float num_segments, uint32_t draw_id)
       : p0p1(p0p1),
         p2p3(p2p3),
         fan_center(fan_center),
         index_offset(index_offset),
-        num_segments(num_segments) {}
+        num_segments(num_segments),
+        draw_info(static_cast<float>(draw_id), 0.f, 0.f, 0.f) {}
 
   Vec4 p0p1;
   Vec4 p2p3;
   Vec2 fan_center;
   float index_offset;
   float num_segments;
+  Vec4 draw_info;
 };
 
-static_assert(sizeof(Instance) == 48);
+static_assert(sizeof(Instance) == 64);
 
 struct TessPathFillVisitor {
   explicit TessPathFillVisitor(const Matrix& matrix,
-                               HWStageBuffer* stage_buffer)
+                               HWStageBuffer* stage_buffer, uint32_t draw_id)
       : matrix_{matrix},
         xform_(wangs_formula::VectorXform(matrix)),
-        stage_buffer_(stage_buffer) {}
+        stage_buffer_(stage_buffer),
+        draw_id_(draw_id) {}
 
   void OnMoveTo(Vec2 const& p) { fan_center = p; }
 
   void OnLineTo(Vec2 const& p0, Vec2 const& p1) {
     stage_buffer_->AppendInstance<Instance>(Vec4{p0, p0}, Vec4{p1, p1},
-                                            fan_center, 0.f, 1.f);
+                                            fan_center, 0.f, 1.f, draw_id_);
   }
 
   void OnQuadTo(Vec2 const& p0, Vec2 const& p1, Vec2 const& p2) {
@@ -145,7 +153,7 @@ struct TessPathFillVisitor {
       stage_buffer_->AppendInstance<Instance>(
           Vec4{p0, p1}, Vec4{p2, p3}, fan_center,
           static_cast<float>(i * kMaxNumSegmentsPerInstance),
-          static_cast<float>(num));
+          static_cast<float>(num), draw_id_);
     }
   }
 
@@ -198,14 +206,21 @@ struct TessPathFillVisitor {
   wangs_formula::VectorXform xform_;
   Vec2 arc_[4];
   HWStageBuffer* stage_buffer_;
+  uint32_t draw_id_ = 0;
   float precision_ = kPrecision;
 };
 
 }  // namespace
 
 WGSLTessPathFillGeometry::WGSLTessPathFillGeometry(const Path& path,
-                                                   const Paint& paint)
-    : HWWGSLGeometry(Flags::kSnippet), path_(path), paint_(paint) {}
+                                                   const Paint& paint,
+                                                   bool use_storage_buffer,
+                                                   uint32_t draw_id)
+    : HWWGSLGeometry(Flags::kSnippet),
+      path_(path),
+      paint_(paint),
+      use_storage_buffer_(use_storage_buffer),
+      draw_id_(draw_id) {}
 
 std::vector<GPUVertexBufferLayout> WGSLTessPathFillGeometry::GetBufferLayout() {
   return InitVertexBufferLayout();
@@ -217,7 +232,13 @@ void WGSLTessPathFillGeometry::WriteVSFunctionsAndStructs(
 }
 
 void WGSLTessPathFillGeometry::WriteVSUniforms(std::stringstream& ss) const {
+  if (!use_storage_buffer_) {
+    ss << "@group(0) @binding(0) var<uniform> common_slot: CommonSlot;\n";
+    return;
+  }
+
   ss << "@group(0) @binding(0) var<uniform> common_slot: CommonSlot;\n";
+  ss << HWDrawDataWGSL();
 }
 
 void WGSLTessPathFillGeometry::WriteVSInput(std::stringstream& ss) const {
@@ -229,6 +250,7 @@ struct VSInput {
   @location(3) fan_center: vec2<f32>,
   @location(4) index_offset: f32,
   @location(5) num_segments: f32,
+  @location(6) draw_info: vec4<f32>,
 };
 )";
 }
@@ -255,8 +277,18 @@ void WGSLTessPathFillGeometry::WriteVSMain(std::stringstream& ss) const {
     pos = mix(p012, p123, t);
   }
   local_pos = pos;
-  output.pos = get_vertex_position(pos.xy, common_slot);
 )";
+  if (use_storage_buffer_) {
+    ss << R"(
+  let draw_id: u32 = u32(input.draw_info.x);
+  let data: HWDrawData = draw_data[draw_id];
+  let transform: mat4x4<f32> = transforms[data.transform_id];
+  var out_pos: vec4<f32> = common_slot.mvp * transform * vec4<f32>(pos.xy, 0.0, 1.0);
+  output.pos = vec4<f32>(out_pos.x, out_pos.y, data.clip_depth * out_pos.w, out_pos.w);
+)";
+  } else {
+    ss << "  output.pos = get_vertex_position(pos.xy, common_slot);\n";
+  }
 }
 
 void WGSLTessPathFillGeometry::PrepareCMD(Command* cmd, HWDrawContext* context,
@@ -291,8 +323,9 @@ void WGSLTessPathFillGeometry::PrepareCMD(Command* cmd, HWDrawContext* context,
   cmd->index_buffer = context->static_buffer->GetTessPathFillIndexBufferView();
   cmd->index_count = cmd->index_buffer.range / sizeof(uint32_t);
 
-  TessPathFillVisitor path_visitor(Matrix::Scale(scale.x, scale.y) * transform,
-                                   context->stageBuffer);
+  TessPathFillVisitor path_visitor(
+      Matrix::Scale(scale.x, scale.y) * transform, context->stageBuffer,
+      use_storage_buffer_ ? draw_id_ : 0);
   context->stageBuffer->BeginWritingInstance(
       path_.CountVerbs() * sizeof(Instance), alignof(Instance));
   path_visitor.VisitPath(path_, true);
@@ -306,13 +339,21 @@ void WGSLTessPathFillGeometry::PrepareCMD(Command* cmd, HWDrawContext* context,
     return;
   }
 
-  // bind CommonSlot
   auto common_slot = group->GetEntry(0);
-  if (!SetupCommonInfo(common_slot, context->mvp, transform, clip_depth)) {
+  if (!SetupCommonInfo(common_slot, context->mvp,
+                       use_storage_buffer_ ? Matrix{} : transform,
+                       use_storage_buffer_ ? 0.f : clip_depth)) {
     return;
   }
 
   UploadBindGroup(group->group, common_slot, cmd, context);
+
+  if (!use_storage_buffer_) {
+    return;
+  }
+
+  BindFrameStorageBuffers(group->group, group->GetEntry(2), group->GetEntry(3),
+                          cmd, context, transform, clip_depth);
 }
 
 GPUBufferView WGSLTessPathFillGeometry::CreateVertexBufferView(

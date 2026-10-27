@@ -11,6 +11,7 @@ namespace skity {
 
 struct GPUCaps {
   bool supports_framebuffer_fetch = false;
+  bool supports_readonly_storage_buffer = false;
 };
 
 }  // namespace skity

@@ -5,6 +5,8 @@
 #ifndef SRC_UTILS_BATCH_GROUP_HPP
 #define SRC_UTILS_BATCH_GROUP_HPP
 
+#include <cstdint>
+
 #include "skity/geometry/matrix.hpp"
 #include "skity/graphic/paint.hpp"
 
@@ -15,6 +17,7 @@ struct BatchGroup {
   T item;
   Paint paint;
   Matrix transform;
+  uint32_t draw_id = UINT32_MAX;
 };
 
 }  // namespace skity

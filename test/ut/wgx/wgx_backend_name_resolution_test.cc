@@ -51,8 +51,8 @@ fn vs_main() -> @builtin(position) vec4<f32> {
   wgx::MslOptions options;
   auto result = program->WriteToMsl("vs_main", options);
   ASSERT_TRUE(result.success);
-  EXPECT_NE(result.content.find("wgx_symbol_"), std::string::npos);
-  EXPECT_EQ(result.content.find("vertex_1"), std::string::npos);
+  EXPECT_EQ(result.content.find("wgx_symbol_"), std::string::npos);
+  EXPECT_NE(result.content.find("vertex_1"), std::string::npos);
   EXPECT_NE(result.content.find("vs_main("), std::string::npos);
 }
 
@@ -91,8 +91,8 @@ fn vs_main(input: VertexInput) -> @builtin(position) vec4<f32> {
   wgx::MslOptions msl_options;
   auto msl_result = program->WriteToMsl("vs_main", msl_options);
   ASSERT_TRUE(msl_result.success);
-  EXPECT_NE(msl_result.content.find("wgx_symbol_"), std::string::npos);
-  EXPECT_EQ(msl_result.content.find("helper(VertexInput"), std::string::npos);
+  EXPECT_EQ(msl_result.content.find("wgx_symbol_"), std::string::npos);
+  EXPECT_NE(msl_result.content.find("helper(VertexInput"), std::string::npos);
   EXPECT_NE(msl_result.content.find("vs_main("), std::string::npos);
 }
 
@@ -174,7 +174,70 @@ fn vs_main(data: Data) -> @builtin(position) vec4<f32> {
   auto msl_result = program->WriteToMsl("vs_main", msl_options);
   ASSERT_TRUE(msl_result.success);
   EXPECT_NE(msl_result.content.find(".value"), std::string::npos);
-  EXPECT_NE(msl_result.content.find("wgx_symbol_"), std::string::npos);
+  EXPECT_EQ(msl_result.content.find("wgx_symbol_"), std::string::npos);
+}
+
+TEST(WgxBackendNameResolutionTest, WritesRuntimeArrayStorageBufferInMsl) {
+  auto program = wgx::Program::Parse(R"(
+struct DrawData {
+  transform_id: u32,
+  clip_depth: f32,
+}
+
+@group(0) @binding(0) var<storage, read> draw_data: array<DrawData>;
+
+@vertex
+fn vs_main() -> @builtin(position) vec4<f32> {
+  let data: DrawData = draw_data[0];
+  return vec4<f32>(f32(data.transform_id), data.clip_depth, 0.0, 1.0);
+}
+)");
+
+  ASSERT_NE(program, nullptr);
+  ASSERT_FALSE(program->GetDiagnosis().has_value());
+
+  wgx::MslOptions msl_options;
+  auto msl_result = program->WriteToMsl("vs_main", msl_options);
+  ASSERT_TRUE(msl_result.success);
+  EXPECT_NE(msl_result.content.find("constant DrawData* draw_data"),
+            std::string::npos);
+  EXPECT_NE(msl_result.content.find("[[buffer(2)]]"), std::string::npos);
+  EXPECT_EQ(msl_result.content.find("constant array<DrawData"),
+            std::string::npos);
+}
+
+TEST(WgxBackendNameResolutionTest, WritesRuntimeArrayStorageBufferInGlsl) {
+  auto program = wgx::Program::Parse(R"(
+struct DrawData {
+  transform_id: u32,
+  clip_depth: f32,
+}
+
+@group(0) @binding(0) var<storage, read> draw_data: array<DrawData>;
+
+@vertex
+fn vs_main() -> @builtin(position) vec4<f32> {
+  let data: DrawData = draw_data[0];
+  return vec4<f32>(f32(data.transform_id), data.clip_depth, 0.0, 1.0);
+}
+)");
+
+  ASSERT_NE(program, nullptr);
+  ASSERT_FALSE(program->GetDiagnosis().has_value());
+
+  wgx::GlslOptions glsl_options;
+  glsl_options.standard = wgx::GlslOptions::Standard::kDesktop;
+  glsl_options.major_version = 4;
+  glsl_options.minor_version = 3;
+
+  auto glsl_result = program->WriteToGlsl("vs_main", glsl_options);
+  ASSERT_TRUE(glsl_result.success);
+  // runtime-sized array should be emitted as `inner[]` in a readonly SSBO
+  // block, never as a sized fixed array.
+  EXPECT_NE(glsl_result.content.find("readonly buffer"), std::string::npos);
+  EXPECT_NE(glsl_result.content.find("std430"), std::string::npos);
+  EXPECT_NE(glsl_result.content.find("inner[]"), std::string::npos);
+  EXPECT_EQ(glsl_result.content.find("inner ;"), std::string::npos);
 }
 
 TEST(WgxBackendNameResolutionTest,

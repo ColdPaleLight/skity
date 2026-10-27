@@ -634,6 +634,7 @@ void HWCanvas::OnFlush() {
     HWRenderTargetCache::Pool pool(
         surface_->GetGPUContext()->GetRenderTargetCache());
 
+    HWFrameStorageBuffer frame_storage_buffer;
     HWDrawContext draw_context;
     draw_context.ctx_scale = ctx_scale_;
     draw_context.stageBuffer = gpu_buffer_;
@@ -650,6 +651,7 @@ void HWCanvas::OnFlush() {
     draw_context.arena_allocator = arena_allocator_;
     root_layer_->SetScale(Vec2{ctx_scale_, ctx_scale_});
     draw_context.scale = root_layer_->GetScale();
+    draw_context.frame_storage_buffer = &frame_storage_buffer;
 
     auto cmd = surface_->GetGPUContext()->GetGPUDevice()->CreateCommandBuffer();
 

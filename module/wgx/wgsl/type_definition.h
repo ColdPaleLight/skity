@@ -182,4 +182,23 @@ struct CommonArray : public ArrayDefinition {
   size_t stride_of_element_ = 0;
 };
 
+struct RuntimeArrayDefinition : public ArrayDefinition {
+  RuntimeArrayDefinition(std::unique_ptr<TypeDefinition> element,
+                         MemoryLayout layout);
+
+  ~RuntimeArrayDefinition() override = default;
+
+  TypeDefinition* GetElementAt(uint32_t index) override;
+
+  bool SetData(const void* data, size_t size) override;
+
+  void WriteToBuffer(void* buffer, size_t offset) const override;
+
+ private:
+  std::unique_ptr<TypeDefinition> element_;
+  std::vector<uint8_t> raw_data_;
+  size_t size_of_element_ = 0;
+  size_t stride_of_element_ = 0;
+};
+
 }  // namespace wgx

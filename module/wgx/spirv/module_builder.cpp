@@ -758,12 +758,34 @@ void DecorateBufferStructMembers(
         {struct_type_id, static_cast<uint32_t>(SpvDecorationBlock)});
   }
 
+  // Compute member offsets locally according to the requested layout rule.
+  // The IR's `member.offset` may be left as 0 by the front-end (e.g. for
+  // user-declared WGSL structs in lower_core.cpp), so relying on it here
+  // would silently produce overlapping member layouts that fail downstream
+  // SPIR-V to MSL conversion.
+  uint32_t running_offset = 0;
   for (uint32_t index = 0; index < type->members.size(); ++index) {
     const auto& member = type->members[index];
+    const auto member_layout =
+        type_emitter->GetTypeTable()->GetLayoutInfo(member.type, layout_rule);
+    uint32_t member_offset =
+        ir::TypeTable::AlignOffset(running_offset, member_layout.alignment);
+    if (layout_rule == ir::TypeTable::LayoutRule::kStd140) {
+      // std140 additionally requires struct/array members to start on a
+      // 16-byte boundary.
+      const ir::Type* member_type_info =
+          type_emitter->GetTypeTable()->GetType(member.type);
+      if (member_type_info != nullptr &&
+          (member_type_info->kind == ir::TypeKind::kStruct ||
+           member_type_info->kind == ir::TypeKind::kArray)) {
+        member_offset = ir::TypeTable::AlignOffset(member_offset, 16);
+      }
+    }
     AppendInstruction(
         &sections->annotations, SpvOpMemberDecorate,
         {struct_type_id, index, static_cast<uint32_t>(SpvDecorationOffset),
-         member.offset});
+         member_offset});
+    running_offset = member_offset + member_layout.size;
 
     const ir::Type* member_type =
         type_emitter->GetTypeTable()->GetType(member.type);
@@ -804,6 +826,28 @@ void DecorateBufferStructMembers(
 
       const ir::Type* element_type =
           type_emitter->GetTypeTable()->GetType(member_type->element_type);
+      if (element_type != nullptr &&
+          element_type->kind == ir::TypeKind::kMatrix) {
+        // SPIR-V requires ColMajor / MatrixStride decorations on the struct
+        // member even when the matrix is nested inside an array. Without
+        // these decorations SPIRV-Cross cannot determine the buffer packing
+        // and rejects the module (e.g. when MoltenVK converts to MSL).
+        const ir::TypeId column_vector_type =
+            type_emitter->GetTypeTable()->GetVectorType(
+                element_type->element_type, element_type->count);
+        const auto column_layout = type_emitter->GetTypeTable()->GetLayoutInfo(
+            column_vector_type, layout_rule);
+        const uint32_t matrix_stride = ir::TypeTable::AlignOffset(
+            column_layout.size, column_layout.alignment);
+
+        AppendInstruction(&sections->annotations, SpvOpMemberDecorate,
+                          {struct_type_id, index,
+                           static_cast<uint32_t>(SpvDecorationColMajor)});
+        AppendInstruction(
+            &sections->annotations, SpvOpMemberDecorate,
+            {struct_type_id, index,
+             static_cast<uint32_t>(SpvDecorationMatrixStride), matrix_stride});
+      }
       if (element_type != nullptr &&
           element_type->kind == ir::TypeKind::kStruct) {
         DecorateBufferStructMembers(sections, type_emitter,

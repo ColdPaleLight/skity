@@ -30,6 +30,9 @@ class HWDynamicRRectDraw : public HWDynamicDraw {
                           HWDrawContext* context) override;
 
  private:
+  void PrepareBatchDrawData(HWDrawContext* context);
+
+ private:
   std::vector<BatchGroup<RRect>> batch_group_;
 };
 

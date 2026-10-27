@@ -19,6 +19,10 @@ WGPUBufferUsage ConvertGPUBufferUsageMask(GPUBufferUsageMask usage) {
     ret |= WGPUBufferUsage_Uniform;
   }
 
+  if (usage & GPUBufferUsage::kStorageBuffer) {
+    ret |= WGPUBufferUsage_Storage;
+  }
+
   if (usage & GPUBufferUsage::kIndexBuffer) {
     ret |= WGPUBufferUsage_Index;
   }

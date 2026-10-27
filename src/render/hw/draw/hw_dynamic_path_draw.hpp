@@ -5,6 +5,7 @@
 #ifndef SRC_RENDER_HW_DRAW_HW_DYNAMIC_PATH_DRAW_HPP
 #define SRC_RENDER_HW_DRAW_HW_DYNAMIC_PATH_DRAW_HPP
 
+#include <cstdint>
 #include <skity/graphic/paint.hpp>
 #include <skity/graphic/path.hpp>
 #include <utility>
@@ -29,7 +30,6 @@ class HWDynamicPathDraw : public HWDynamicDraw {
  private:
   HWWGSLGeometry *GenGeometry(HWDrawContext *context, bool aa) const;
 
- private:
   Path path_;
   Paint paint_;
   bool is_stroke_;

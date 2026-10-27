@@ -2,12 +2,58 @@
 // Licensed under the Apache License Version 2.0 that can be found in the
 // LICENSE file in the root directory of this source tree.
 
+#define WGX_OUTPUT_ORIGINAL_NAME
+
 #include "msl/msl_ast_printer.h"
 
 #include "msl/uniform_capture.h"
 
 namespace wgx {
 namespace msl {
+
+namespace {
+
+bool IsRuntimeArrayType(const ast::Type& type) {
+  return type.expr != nullptr && type.expr->ident != nullptr &&
+         type.expr->ident->name == "array" &&
+         type.expr->ident->args.size() == 1;
+}
+
+bool IsTextureOrSamplerType(const ast::Type& type) {
+  if (type.expr == nullptr || type.expr->ident == nullptr) {
+    return false;
+  }
+
+  const auto& type_name = type.expr->ident->name;
+  return type_name == "sampler" || type_name == "texture_1d" ||
+         type_name == "texture_2d" || type_name == "texture_3d";
+}
+
+bool IsStorageReadOnlyVar(const ast::Var* var) {
+  if (var == nullptr || var->address_space == nullptr ||
+      var->address_space->GetType() != ast::ExpressionType::kIdentifier) {
+    return false;
+  }
+
+  auto* address_space = static_cast<ast::IdentifierExp*>(var->address_space);
+  if (address_space->ident == nullptr ||
+      address_space->ident->name != "storage") {
+    return false;
+  }
+
+  if (var->access == nullptr) {
+    return false;
+  }
+
+  if (var->access->GetType() != ast::ExpressionType::kIdentifier) {
+    return false;
+  }
+
+  auto* access = static_cast<ast::IdentifierExp*>(var->access);
+  return access->ident != nullptr && access->ident->name == "read";
+}
+
+}  // namespace
 
 AstPrinter::AstPrinter(
     const MslOptions& options, Function* func,
@@ -368,27 +414,7 @@ void AstPrinter::Visit(ast::Function* function) {
         ss_ << ",";
       }
 
-      bool is_const = true;
-
-      if (input->type.expr) {
-        const auto& type_name = input->type.expr->ident->name;
-        if (type_name == "sampler" || type_name == "texture_1d" ||
-            type_name == "texture_2d" || type_name == "texture_3d") {
-          is_const = false;
-        }
-      }
-
-      if (is_const) {
-        ss_ << "constant ";
-      }
-
-      WriteType(input->type);
-      if (is_const) {
-        ss_ << "&";
-      }
-      ss_ << " ";
-
-      input->name->Accept(this);
+      WriteAdditionalInput(input);
 
       auto attrs = GetAttributes(input->attributes, input->type,
                                  AttrTarget::kParameter, true, false);
@@ -410,27 +436,7 @@ void AstPrinter::Visit(ast::Function* function) {
     for (auto& uniform : uniforms) {
       ss_ << ",";
 
-      bool is_const = true;
-
-      if (uniform->type.expr) {
-        const auto& type_name = uniform->type.expr->ident->name;
-        if (type_name == "sampler" || type_name == "texture_1d" ||
-            type_name == "texture_2d" || type_name == "texture_3d") {
-          is_const = false;
-        }
-      }
-
-      if (is_const) {
-        ss_ << "constant ";
-      }
-
-      WriteType(uniform->type);
-      if (is_const) {
-        ss_ << "&";
-      }
-      ss_ << " ";
-
-      uniform->name->Accept(this);
+      WriteAdditionalInput(uniform);
     }
   }
 
@@ -884,8 +890,10 @@ void AstPrinter::WriteType(const ast::Type& type) {
     auto inner_type = ast::Type{array.type};
     ss_ << "array<";
     WriteType(inner_type);
-    ss_ << ", ";
-    array.size->Accept(this);
+    if (array.size != nullptr) {
+      ss_ << ", ";
+      array.size->Accept(this);
+    }
     ss_ << ">";
 
   } else if (name == "atan") {
@@ -893,6 +901,35 @@ void AstPrinter::WriteType(const ast::Type& type) {
   } else {
     ss_ << GetOutputName(FindSymbol(type.expr), name);
   }
+}
+
+void AstPrinter::WriteAdditionalInput(ast::Var* input) {
+  if (input == nullptr) {
+    return;
+  }
+
+  if (IsRuntimeArrayType(input->type)) {
+    ss_ << (IsStorageReadOnlyVar(input) ? "constant " : "device ");
+    auto array = input->type.AsArray();
+    WriteType(ast::Type{array.type});
+    ss_ << "* ";
+    input->name->Accept(this);
+    return;
+  }
+
+  bool is_const = !IsTextureOrSamplerType(input->type);
+
+  if (is_const) {
+    ss_ << "constant ";
+  }
+
+  WriteType(input->type);
+  if (is_const) {
+    ss_ << "&";
+  }
+  ss_ << " ";
+
+  input->name->Accept(this);
 }
 
 void AstPrinter::WriteAttributes(const std::vector<ast::Attribute*>& attributes,

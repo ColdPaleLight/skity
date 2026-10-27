@@ -169,6 +169,7 @@ struct GLInterface {
   bool ext_multisampled_render_to_texture = false;
   bool oes_egl_image_external = false;
   bool ext_shader_framebuffer_fetch = false;
+  bool arb_shader_storage_buffer_object = false;
 
  private:
   bool LoadExtensions(GLADloadfunc loader);

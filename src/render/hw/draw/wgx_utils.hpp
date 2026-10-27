@@ -9,6 +9,7 @@
 
 #include <skity/effect/shader.hpp>
 
+#include "src/gpu/gpu_buffer.hpp"
 #include "src/gpu/gpu_sampler.hpp"
 #include "src/gpu/gpu_shader_function.hpp"
 #include "src/gpu/gpu_texture.hpp"
@@ -29,6 +30,18 @@ void UploadBindGroup(uint32_t group, const wgx::BindGroupEntry* entry,
 
 void UploadBindGroup(uint32_t group, const wgx::BindGroupEntry* entry,
                      Command* cmd, const std::shared_ptr<GPUTexture>& texture);
+
+void BindStorageBuffer(uint32_t group, const wgx::BindGroupEntry* entry,
+                       Command* cmd, GPUBufferView buffer_view);
+
+const char* HWDrawDataWGSL();
+
+bool BindFrameStorageBuffers(
+    uint32_t group, const wgx::BindGroupEntry* draw_data_entry,
+    const wgx::BindGroupEntry* transform_entry, Command* cmd,
+    HWDrawContext* context, const Matrix& fallback_transform,
+    float fallback_clip_depth,
+    const char* draw_data_type_name = "array<HWDrawData>");
 
 GPUShaderStageMask ToShaderStage(wgx::ShaderStage stage);
 

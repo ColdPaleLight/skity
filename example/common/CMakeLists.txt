@@ -47,7 +47,11 @@ endif()
 
 if (${SKITY_VK_BACKEND})
   if (NOT TARGET volk::volk)
-    set(VOLK_PULL_IN_VULKAN OFF CACHE BOOL "Disable Volk Vulkan lookup" FORCE)
+    # 让 volk 直接使用仓内 Vulkan-Headers，避免依赖宿主机 Vulkan SDK / find_package
+    set(VULKAN_HEADERS_INSTALL_DIR
+        "${CMAKE_SOURCE_DIR}/third_party/Vulkan-Headers" CACHE PATH
+        "Vulkan headers location used by volk" FORCE)
+    set(VOLK_PULL_IN_VULKAN ON CACHE BOOL "Enable Volk Vulkan lookup" FORCE)
     add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/volk third_party/volk)
   endif()
 

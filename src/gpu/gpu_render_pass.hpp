@@ -104,6 +104,11 @@ struct GPUScissorRect {
 
 enum class GPUIndexFormat { kUint16, kUint32 };
 
+enum class GPUBufferBindingType {
+  kUniform,
+  kReadOnlyStorage,
+};
+
 struct UniformBinding {
   GPUShaderStageMask stages;
   /**
@@ -124,6 +129,7 @@ struct UniformBinding {
   uint32_t binding;
   std::string name;
   GPUBufferView buffer;
+  GPUBufferBindingType type = GPUBufferBindingType::kUniform;
 };
 
 /**

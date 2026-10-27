@@ -296,6 +296,7 @@ VkImageLayout GetSampledImageLayout(const GPUTextureVK& texture) {
 struct DescriptorPoolRequirements {
   uint32_t max_sets = 0;
   uint32_t uniform_buffer_count = 0;
+  uint32_t storage_buffer_count = 0;
   uint32_t sampled_image_count = 0;
   uint32_t sampler_count = 0;
 };
@@ -309,8 +310,13 @@ void AccumulateDescriptorPoolRequirements(const Command& command,
 
   req->max_sets +=
       static_cast<uint32_t>(pipeline.GetDescriptorSetLayouts().size());
-  req->uniform_buffer_count +=
-      static_cast<uint32_t>(command.uniform_bindings.size());
+  for (const auto& binding : command.uniform_bindings) {
+    if (binding.type == GPUBufferBindingType::kReadOnlyStorage) {
+      req->storage_buffer_count++;
+    } else {
+      req->uniform_buffer_count++;
+    }
+  }
   req->sampled_image_count +=
       static_cast<uint32_t>(command.texture_bindings.size());
   req->sampler_count += static_cast<uint32_t>(command.sampler_bindings.size());
@@ -345,6 +351,10 @@ VkDescriptorPool CreateDescriptorPoolForPass(
   if (requirements.uniform_buffer_count > 0) {
     pool_sizes.push_back(
         {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, requirements.uniform_buffer_count});
+  }
+  if (requirements.storage_buffer_count > 0) {
+    pool_sizes.push_back(
+        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, requirements.storage_buffer_count});
   }
   if (requirements.sampled_image_count > 0) {
     pool_sizes.push_back(
@@ -494,7 +504,10 @@ bool SetupDescriptorSets(const VulkanContextState& state,
     write.dstSet = descriptor_sets[binding.group];
     write.dstBinding = binding.binding;
     write.descriptorCount = 1;
-    write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    write.descriptorType =
+        binding.type == GPUBufferBindingType::kReadOnlyStorage
+            ? VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
+            : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     write.pBufferInfo = &buffer_infos.back();
     writes.push_back(write);
   }

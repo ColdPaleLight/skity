@@ -903,8 +903,7 @@ void AstPrinter::WriteUniformVariable(ast::Var* var) {
 
   auto* address_space =
       static_cast<ast::IdentifierExp*>(var->address_space)->ident;
-  // currently only support uniform block
-  if (address_space->name != "uniform") {
+  if (address_space->name != "uniform" && address_space->name != "storage") {
     has_error_ = true;
     return;
   }
@@ -916,7 +915,11 @@ void AstPrinter::WriteUniformVariable(ast::Var* var) {
     ubo_index_++;  // for reflaction
   }
 
-  ss_ << "std140 ) uniform ";
+  if (address_space->name == "storage") {
+    ss_ << "std430 ) readonly buffer ";
+  } else {
+    ss_ << "std140 ) uniform ";
+  }
 #ifdef WGX_OUTPUT_ORIGINAL_NAME
   ss_ << var->name->name << "block_ubo"
       << " {" << std::endl;
@@ -926,7 +929,19 @@ void AstPrinter::WriteUniformVariable(ast::Var* var) {
 
   WriteType(var->type);
 
-  ss_ << " inner ;" << std::endl;
+  ss_ << " inner";
+
+  if (var->type.IsArray()) {
+    auto array = var->type.AsArray();
+    if (array.size != nullptr) {
+      ss_ << "[" << static_cast<ast::IntLiteralExp*>(array.size)->value << "]";
+    } else {
+      // runtime-sized array, only valid in storage buffer
+      ss_ << "[]";
+    }
+  }
+
+  ss_ << " ;" << std::endl;
 
   ss_ << "} ";
   var->name->Accept(this);

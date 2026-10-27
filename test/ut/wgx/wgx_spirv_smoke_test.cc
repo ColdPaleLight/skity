@@ -2731,6 +2731,86 @@ fn vs_main() -> @builtin(position) vec4<f32> {
 }
 
 /**
+ * Test runtime-sized array (`array<T>` without explicit size) inside a
+ * read-only storage buffer. This should lower to `OpTypeRuntimeArray` in
+ * SPIR-V, and the wrapped struct must carry an `ArrayStride` decoration on
+ * the runtime array member so it satisfies Vulkan storage buffer layout
+ * rules.
+ */
+TEST(WgxSpirvSmokeTest, EmitsRuntimeArrayStorageBufferAsOpTypeRuntimeArray) {
+  auto program = wgx::Program::Parse(R"(
+struct Transform {
+  m: mat4x4<f32>,
+};
+
+@group(0) @binding(0)
+var<storage, read> transforms: array<Transform>;
+
+@vertex
+fn vs_main(@builtin(instance_index) idx: u32) -> @builtin(position) vec4<f32> {
+  return transforms[idx].m * vec4<f32>(0.0, 0.0, 0.0, 1.0);
+}
+)");
+
+  ASSERT_NE(program, nullptr);
+  ASSERT_FALSE(program->GetDiagnosis().has_value());
+
+  wgx::SpirvOptions options;
+  auto result = program->WriteToSpirv("vs_main", options);
+
+  ASSERT_TRUE(result.success);
+  DumpSpirvBinary("wgx_vs_main_runtime_array_storage_buffer.spv", result.spirv);
+  auto words = result.spirv;
+
+  ASSERT_GE(words.size(), 5u);
+  EXPECT_EQ(words[0], SpvMagicNumber);
+  EXPECT_TRUE(ContainsInstruction(words, SpvOpTypeRuntimeArray));
+  EXPECT_TRUE(ContainsDecoration(words, SpvDecorationDescriptorSet));
+  EXPECT_TRUE(ContainsDecoration(words, SpvDecorationBinding));
+  EXPECT_TRUE(ContainsDecoration(words, SpvDecorationArrayStride));
+  EXPECT_TRUE(ContainsDecoration(words, SpvDecorationBlock));
+}
+
+/**
+ * Test runtime-sized array of bare matrix (`array<mat4x4<f32>>`) inside a
+ * read-only storage buffer. The outer wrapper struct member must carry
+ * `ColMajor` + `MatrixStride` decorations, otherwise SPIRV-Cross cannot
+ * determine the buffer packing and rejects the module (e.g. when MoltenVK
+ * converts to MSL it raises "Found a buffer packing case which we cannot
+ * represent in MSL").
+ */
+TEST(WgxSpirvSmokeTest,
+     EmitsRuntimeArrayOfMatrixWithMatrixStrideMemberDecoration) {
+  auto program = wgx::Program::Parse(R"(
+@group(0) @binding(0)
+var<storage, read> transforms: array<mat4x4<f32>>;
+
+@vertex
+fn vs_main(@builtin(instance_index) idx: u32) -> @builtin(position) vec4<f32> {
+  return transforms[idx] * vec4<f32>(0.0, 0.0, 0.0, 1.0);
+}
+)");
+
+  ASSERT_NE(program, nullptr);
+  ASSERT_FALSE(program->GetDiagnosis().has_value());
+
+  wgx::SpirvOptions options;
+  auto result = program->WriteToSpirv("vs_main", options);
+
+  ASSERT_TRUE(result.success);
+  DumpSpirvBinary("wgx_vs_main_runtime_array_of_matrix.spv", result.spirv);
+  auto words = result.spirv;
+
+  ASSERT_GE(words.size(), 5u);
+  EXPECT_EQ(words[0], SpvMagicNumber);
+  EXPECT_TRUE(ContainsInstruction(words, SpvOpTypeRuntimeArray));
+  EXPECT_TRUE(ContainsDecoration(words, SpvDecorationBlock));
+  EXPECT_TRUE(ContainsDecoration(words, SpvDecorationArrayStride));
+  EXPECT_TRUE(ContainsMemberDecoration(words, SpvDecorationColMajor));
+  EXPECT_TRUE(ContainsMemberDecoration(words, SpvDecorationMatrixStride));
+}
+
+/**
  * Test workgroup global variable.
  * Workgroup variables are shared within workgroup and don't need binding.
  *

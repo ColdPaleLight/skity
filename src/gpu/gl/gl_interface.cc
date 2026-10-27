@@ -233,6 +233,13 @@ bool GLInterface::LoadExtensions(GLADloadfunc loader) {
   ext_shader_framebuffer_fetch =
       extensions.Contains("GL_EXT_shader_framebuffer_fetch");
 
+  // GL_ARB_shader_storage_buffer_object exposes SSBO on drivers older than
+  // GL 4.3. The corresponding GLES extension is GL_OES_shader_storage_buffer
+  // _object which is uncommon, so we look up both names.
+  arb_shader_storage_buffer_object =
+      extensions.Contains("GL_ARB_shader_storage_buffer_object") ||
+      extensions.Contains("GL_OES_shader_storage_buffer_object");
+
   return true;
 }
 

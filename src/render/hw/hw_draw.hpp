@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "skity/graphic/image.hpp"
+#include "src/gpu/gpu_buffer.hpp"
 #include "src/render/hw/draw/wgx_programmable_blending.hpp"
 #include "src/render/hw/hw_draw_pass.hpp"
 #include "src/render/hw/hw_render_target_cache.hpp"
@@ -25,6 +26,28 @@ class HWStageBuffer;
 class GPURenderPass;
 class HWPipelineLib;
 class GPUContextImpl;
+
+struct HWDrawData {
+  uint32_t transform_id = 0;
+  float clip_depth = 0.f;
+  float padding[2] = {};
+};
+
+struct HWFrameStorageBuffer {
+  uint32_t AddTransform(const Matrix& transform);
+
+  GPUBufferView GetTransformBuffer(HWStageBuffer* stage_buffer);
+
+  uint32_t AddDrawData(uint32_t transform_id, float clip_depth);
+
+  GPUBufferView GetDrawDataBuffer(HWStageBuffer* stage_buffer);
+
+ private:
+  std::vector<Matrix> transforms_ = {};
+  GPUBufferView transform_buffer_ = {};
+  std::vector<HWDrawData> draw_data_ = {};
+  GPUBufferView draw_data_buffer_ = {};
+};
 
 enum class HWDrawType {
   kUnknow,
@@ -51,6 +74,7 @@ struct HWDrawContext {
   Vec2 scale = {1.f, 1.f};
   HWStaticBuffer* static_buffer = nullptr;
   const DstTextureCopyInfo* dst_read_texture_copy_info = nullptr;
+  HWFrameStorageBuffer* frame_storage_buffer = nullptr;
 };
 
 enum HWDrawState : uint32_t {
@@ -96,6 +120,14 @@ class HWDraw {
   virtual void Draw(GPURenderPass* render_pass, GPUCommandBuffer* cmd) = 0;
 
   const Matrix& GetTransform() const { return transform_; }
+
+  uint32_t GetDrawID() const {
+    return draw_id_ == UINT32_MAX ? 0 : draw_id_;
+  }
+
+  uint32_t GetTransformID() const {
+    return transform_id_ == UINT32_MAX ? 0 : transform_id_;
+  }
 
   bool IsAntiAlias() const { return anti_alias_; }
 
@@ -154,11 +186,20 @@ class HWDraw {
 
   virtual bool OnMergeIfPossible(HWDraw* draw) { return false; }
 
-  void SetTransform(const Matrix& matrix) { transform_ = matrix; }
+  void SetTransform(const Matrix& matrix) {
+    transform_ = matrix;
+    transform_id_ = UINT32_MAX;
+    draw_id_ = UINT32_MAX;
+  }
+
+ private:
+  void PrepareFrameData(HWDrawContext* context);
 
  private:
   Matrix transform_;
-  uint32_t clip_depth_;
+  uint32_t draw_id_ = UINT32_MAX;
+  uint32_t transform_id_ = UINT32_MAX;
+  uint32_t clip_depth_ = 0;
   uint32_t sample_count_ = 1;
   float clip_value_ = 0.f;
   GPUTextureFormat target_format_ = GPUTextureFormat::kRGBA8Unorm;

@@ -98,9 +98,21 @@ HWWGSLGeometry *HWDynamicPathDraw::GenGeometry(HWDrawContext *context,
     DEBUG_CHECK(!paint_.IsAntiAlias());
     DEBUG_CHECK(!aa);
     if (is_stroke_) {
-      return arena_allocator->Make<WGSLTessPathStrokeGeometry>(path_, paint_);
+      auto supports_storage_buffer = context->gpuContext != nullptr &&
+                                     context->gpuContext->GetGPUDevice()
+                                         ->GetCaps()
+                                         .supports_readonly_storage_buffer;
+      uint32_t draw_id = supports_storage_buffer ? GetDrawID() : 0;
+      return arena_allocator->Make<WGSLTessPathStrokeGeometry>(
+          path_, paint_, supports_storage_buffer, draw_id);
     } else {
-      return arena_allocator->Make<WGSLTessPathFillGeometry>(path_, paint_);
+      auto supports_storage_buffer = context->gpuContext != nullptr &&
+                                     context->gpuContext->GetGPUDevice()
+                                         ->GetCaps()
+                                         .supports_readonly_storage_buffer;
+      uint32_t draw_id = supports_storage_buffer ? GetDrawID() : 0;
+      return arena_allocator->Make<WGSLTessPathFillGeometry>(
+          path_, paint_, supports_storage_buffer, draw_id);
     }
   } else {
     if (aa) {

@@ -19,8 +19,11 @@ enum { STAGE_DEFAULT_BUFFER_SIZE = 1024 };
 HWStageBuffer::HWStageBuffer(GPUDevice* device)
     : gpu_device_(device),
       stage_buffer_(STAGE_DEFAULT_BUFFER_SIZE),
-      gpu_buffer_(device->CreateBuffer(GPUBufferUsage::kVertexBuffer |
-                                       GPUBufferUsage::kUniformBuffer)),
+      gpu_buffer_(device->CreateBuffer(
+          GPUBufferUsage::kVertexBuffer | GPUBufferUsage::kUniformBuffer |
+          (device->GetCaps().supports_readonly_storage_buffer
+               ? GPUBufferUsage::kStorageBuffer
+               : 0))),
       gpu_index_buffer_(device->CreateBuffer(GPUBufferUsage::kIndexBuffer)),
       ubo_alignment_(device->GetBufferAlignment()) {}
 

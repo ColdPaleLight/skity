@@ -399,20 +399,21 @@ void Function::InitBindGroups() {
     auto &bind_group = GetOrCreateBindGroup(group->index);
 
     if (var->address_space) {
-      // this is a uniform variable
+      auto address_space = static_cast<ast::IdentifierExp*>(
+                               var->address_space)
+                               ->ident->name;
 
       BindGroupEntry entry{
-          BindingType::kUniformBuffer,
+          address_space == "storage" ? BindingType::kStorageBuffer
+                                     : BindingType::kUniformBuffer,
           static_cast<uint32_t>(binding->index),
       };
       entry.stage = stage;
 
-      // currently we only use uniform buffer, so it can switch to std140 if
-      // layout is kWGSL
-
       auto layout = layout_;
       if (layout == MemoryLayout::kWGSL) {
-        layout = MemoryLayout::kStd140;
+        layout = address_space == "storage" ? MemoryLayout::kStd430
+                                            : MemoryLayout::kStd140;
       }
 
       entry.type_definition = CreateTypeDefinition(var->type, this, layout);

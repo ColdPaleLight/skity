@@ -47,7 +47,7 @@ std::vector<GPUVertexBufferLayout> InitVertexBufferLayout() {
       },
       // instance
       GPUVertexBufferLayout{
-          20 * sizeof(float),
+          24 * sizeof(float),
           GPUVertexStepMode::kInstance,
           {
               GPUVertexAttribute{
@@ -75,6 +75,11 @@ std::vector<GPUVertexBufferLayout> InitVertexBufferLayout() {
                   16 * sizeof(float),
                   6,
               },
+              GPUVertexAttribute{
+                  GPUVertexFormat::kFloat32x4,
+                  20 * sizeof(float),
+                  7,
+              },
           },
       },
   };
@@ -91,20 +96,23 @@ struct Instance {
   float num_segments;
   float stroke_radius;
   float is_circle;
+  float draw_id = 0.f;
+  float padding[3] = {};
 };
 
-static_assert(sizeof(Instance) == 20 * sizeof(float));
+static_assert(sizeof(Instance) == 24 * sizeof(float));
 
 struct TessPathStrokeVisitor {
   explicit TessPathStrokeVisitor(const Matrix& matrix, const Paint& paint,
-                                 HWStageBuffer* stage_buffer)
+                                 HWStageBuffer* stage_buffer, uint32_t draw_id)
       : matrix_(matrix),
         xform_(wangs_formula::VectorXform(matrix)),
         stroke_radius_(std::max(0.5f, paint.GetStrokeWidth()) * 0.5f),
         stroke_miter_(paint.GetStrokeMiter()),
         join_(paint.GetStrokeJoin()),
         cap_(paint.GetStrokeCap()),
-        stage_buffer_(stage_buffer) {}
+        stage_buffer_(stage_buffer),
+        draw_id_(draw_id) {}
 
   void OnEndPath() { HandleCaps(); }
 
@@ -317,6 +325,7 @@ struct TessPathStrokeVisitor {
     for (uint32_t i = 0; i < count; i++) {
       auto offset = stage_buffer_->AppendInstance<Instance>();
       Instance& circle = *stage_buffer_->ToInstance<Instance>(offset);
+      circle = {};
 
       circle.p0p1 = Vec4{center, center};
       circle.p2p3 = Vec4{center, center};
@@ -326,12 +335,14 @@ struct TessPathStrokeVisitor {
       circle.num_segments = num;
       circle.is_circle = 1.f;
       circle.stroke_radius = stroke_radius_;
+      circle.draw_id = static_cast<float>(draw_id_);
     }
   }
 
   uint32_t AddLineInstance(const Vec2& p0, const Vec2& p1, bool needs_join) {
     auto offset = stage_buffer_->AppendInstance<Instance>();
     Instance& line = *stage_buffer_->ToInstance<Instance>(offset);
+    line = {};
 
     Vec2 ctrl1 = 2.f / 3.f * p0 + 1.f / 3.f * p1;
     Vec2 ctrl2 = 2.f / 3.f * p1 + 1.f / 3.f * p0;
@@ -342,6 +353,7 @@ struct TessPathStrokeVisitor {
     line.num_segments = 1.f;
     line.is_circle = 0.f;
     line.stroke_radius = stroke_radius_;
+    line.draw_id = static_cast<float>(draw_id_);
     if (needs_join) {
       GenerateJoin(join_point_, p0, p1, line);
     } else {
@@ -356,12 +368,15 @@ struct TessPathStrokeVisitor {
                             float num_segments, bool needs_join) {
     auto offset = stage_buffer_->AppendInstance<Instance>();
     Instance& cubic = *stage_buffer_->ToInstance<Instance>(offset);
+    cubic = {};
+
     cubic.p0p1 = Vec4{p0, p1};
     cubic.p2p3 = Vec4{p2, p3};
     cubic.index_offset = index_offset;
     cubic.num_segments = num_segments;
     cubic.is_circle = 0.f;
     cubic.stroke_radius = stroke_radius_;
+    cubic.draw_id = static_cast<float>(draw_id_);
 
     if (needs_join) {
       GenerateJoin(join_point_, p0, GetTangentPoint(p0, p1, p2, p3), cubic);
@@ -466,14 +481,21 @@ struct TessPathStrokeVisitor {
   const Paint::Cap cap_;
   std::optional<uint32_t> semicircle_segments_num_;
   HWStageBuffer* stage_buffer_;
+  uint32_t draw_id_ = 0;
   float precision_ = kPrecision;
 };
 
 }  // namespace
 
 WGSLTessPathStrokeGeometry::WGSLTessPathStrokeGeometry(const Path& path,
-                                                       const Paint& paint)
-    : HWWGSLGeometry(Flags::kSnippet), path_(path), paint_(paint) {}
+                                                       const Paint& paint,
+                                                       bool use_storage_buffer,
+                                                       uint32_t draw_id)
+    : HWWGSLGeometry(Flags::kSnippet),
+      path_(path),
+      paint_(paint),
+      use_storage_buffer_(use_storage_buffer),
+      draw_id_(draw_id) {}
 
 std::vector<GPUVertexBufferLayout>
 WGSLTessPathStrokeGeometry::GetBufferLayout() {
@@ -515,7 +537,21 @@ fn get_join_pos(index: i32, j0: vec2<f32>, j1: vec2<f32>, j2: vec2<f32>, j3: vec
 }
 
 void WGSLTessPathStrokeGeometry::WriteVSUniforms(std::stringstream& ss) const {
-  ss << "@group(0) @binding(0) var<uniform> common_slot: CommonSlot;\n";
+  if (!use_storage_buffer_) {
+    ss << "@group(0) @binding(0) var<uniform> common_slot: CommonSlot;\n";
+    return;
+  }
+
+  ss << R"(
+struct TessPathStrokeDrawData {
+  transform_id: u32,
+  clip_depth: f32,
+  padding: vec2<f32>,
+};
+@group(0) @binding(0) var<uniform> common_slot: CommonSlot;
+@group(0) @binding(2) var<storage, read> draw_data: array<TessPathStrokeDrawData>;
+@group(0) @binding(3) var<storage, read> transforms: array<mat4x4<f32>>;
+)";
 }
 
 void WGSLTessPathStrokeGeometry::WriteVSInput(std::stringstream& ss) const {
@@ -528,6 +564,7 @@ struct VSInput {
   @location(4) j0j1 : vec4<f32>,
   @location(5) j2j3 : vec4<f32>,
   @location(6) pack : vec4<f32>,
+  @location(7) draw_info : vec4<f32>,
 };
 )";
 }
@@ -573,8 +610,19 @@ void WGSLTessPathStrokeGeometry::WriteVSMain(std::stringstream& ss) const {
     pos = pos + norm.xy * stroke_radius * input.offset;
   }
   local_pos = pos;
-  output.pos = get_vertex_position(pos.xy, common_slot);
 )";
+
+  if (use_storage_buffer_) {
+    ss << R"(
+  let draw_id: u32 = u32(input.draw_info.x);
+  let data: TessPathStrokeDrawData = draw_data[draw_id];
+  let transform: mat4x4<f32> = transforms[data.transform_id];
+  var out_pos: vec4<f32> = common_slot.mvp * transform * vec4<f32>(pos.xy, 0.0, 1.0);
+  output.pos = vec4<f32>(out_pos.x, out_pos.y, data.clip_depth * out_pos.w, out_pos.w);
+)";
+  } else {
+    ss << "  output.pos = get_vertex_position(pos.xy, common_slot);\n";
+  }
 }
 
 void WGSLTessPathStrokeGeometry::PrepareCMD(Command* cmd,
@@ -613,7 +661,7 @@ void WGSLTessPathStrokeGeometry::PrepareCMD(Command* cmd,
       2 * path_.CountVerbs() * sizeof(Instance), alignof(Instance));
   TessPathStrokeVisitor path_visitor(
       Matrix::Scale(scale.x, scale.y) * transform, paint_,
-      context->stageBuffer);
+      context->stageBuffer, use_storage_buffer_ ? draw_id_ : 0);
   path_visitor.VisitPath(path_, false);
   auto instance_buffer_view = context->stageBuffer->EndWritingInstance();
   cmd->instance_count = instance_buffer_view.range / sizeof(Instance);
@@ -624,14 +672,23 @@ void WGSLTessPathStrokeGeometry::PrepareCMD(Command* cmd,
     return;
   }
 
-  // bind CommonSlot
   auto common_slot = group->GetEntry(0);
 
-  if (!SetupCommonInfo(common_slot, context->mvp, transform, clip_depth)) {
+  if (!SetupCommonInfo(common_slot, context->mvp,
+                       use_storage_buffer_ ? Matrix{} : transform,
+                       use_storage_buffer_ ? 0.f : clip_depth)) {
     return;
   }
 
   UploadBindGroup(group->group, common_slot, cmd, context);
+
+  if (!use_storage_buffer_) {
+    return;
+  }
+
+  BindFrameStorageBuffers(group->group, group->GetEntry(2), group->GetEntry(3),
+                          cmd, context, transform, clip_depth,
+                          "array<TessPathStrokeDrawData>");
 }
 
 GPUBufferView WGSLTessPathStrokeGeometry::CreateVertexBufferView(

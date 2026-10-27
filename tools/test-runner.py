@@ -139,7 +139,14 @@ class TestRunner:
     def configure_cmake(self) -> Tuple[bool, str]:
         self.print_status(Colors.YELLOW, "🔧 Configuring with CMake...")
         os.makedirs(self.build_dir, exist_ok=True)
-        cmd = ["cmake", "-B", self.build_dir, "-DSKITY_TEST=ON", "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"]
+        cmd = [
+            "cmake",
+            "-B",
+            self.build_dir,
+            "-DSKITY_TEST=ON",
+            "-DSKITY_VK_BACKEND=ON",
+            "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
+        ]
         vk_test_loader = os.environ.get("SKITY_VK_TEST_USE_SYSTEM_LOADER", "")
         if vk_test_loader.upper() not in ("", "0", "OFF", "FALSE", "NO"):
             cmd.append("-DSKITY_VK_TEST_USE_SYSTEM_LOADER=ON")

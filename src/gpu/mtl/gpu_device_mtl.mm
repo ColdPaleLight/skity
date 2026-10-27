@@ -70,6 +70,7 @@ GPUDeviceMTL::GPUDeviceMTL(id<MTLDevice> device, id<MTLCommandQueue> queue)
       max_texture_size_(0) {
   auto gpu_caps = std::make_unique<GPUCaps>();
   gpu_caps->supports_framebuffer_fetch = SupportsFramebufferFetch(device);
+  gpu_caps->supports_readonly_storage_buffer = true;
   InitCaps(std::move(gpu_caps));
 }
 
