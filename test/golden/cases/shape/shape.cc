@@ -513,7 +513,7 @@ TEST(ShapeGolden, StrokeJoinAndCap) {
           .coverage_aa_path = expected_coverage_aa_path.c_str()}));
 }
 
-TEST(ShapeGolden, PathTransformFillType) {
+static void TestPathTransformFillType(bool use_builder) {
   skity::PictureRecorder recorder;
 
   recorder.BeginRecording(skity::Rect::MakeWH(400, 200));
@@ -523,6 +523,13 @@ TEST(ShapeGolden, PathTransformFillType) {
   path.AddCircle(100.f, 100.f, 80.f);
   path.AddCircle(100.f, 100.f, 30.f);
   path.SetFillType(skity::Path::PathFillType::kEvenOdd);
+  if (use_builder) {
+    skity::PathBuilder builder;
+    builder.AddCircle(100.f, 100.f, 80.f)
+        .AddCircle(100.f, 100.f, 30.f)
+        .SetFillType(skity::Path::PathFillType::kEvenOdd);
+    path = builder.Detach();
+  }
 
   skity::Paint paint;
   paint.SetAntiAlias(true);
@@ -545,6 +552,12 @@ TEST(ShapeGolden, PathTransformFillType) {
           .cpu_tess_path = expected_image_path.c_str(),
           .gpu_tess_path = expected_image_path.c_str(),
           .coverage_aa_path = expected_coverage_aa_path.c_str()}));
+}
+
+TEST(ShapeGolden, PathTransformFillType) { TestPathTransformFillType(false); }
+
+TEST(ShapeGolden, PathBuilderTransformFillType) {
+  TestPathTransformFillType(true);
 }
 
 TEST(ShapeGolden, DrawEmptyPath) {

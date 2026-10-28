@@ -510,7 +510,7 @@ TEST(SimpleShapeGolden, CoverageAwareBlendModes) {
   }
 }
 
-TEST(SimpleShapeGolden, PlusWithPartialCoverage) {
+static void TestPlusWithPartialCoverage(bool use_builder) {
   skity::PictureRecorder recorder;
   recorder.BeginRecording(skity::Rect::MakeWH(200.f, 200.f));
 
@@ -523,8 +523,15 @@ TEST(SimpleShapeGolden, PlusWithPartialCoverage) {
   paint.SetBlendMode(skity::BlendMode::kPlus);
   paint.SetStrokeWidth(20.f);
   paint.SetStyle(skity::Paint::kStroke_Style);
-  canvas->DrawRoundRect(skity::Rect::MakeLTRB(40.f, 40.f, 160.f, 160.f), 20.f,
-                        20.f, paint);
+  if (use_builder) {
+    skity::PathBuilder builder;
+    builder.AddRoundRect(skity::Rect::MakeLTRB(40.f, 40.f, 160.f, 160.f), 20.f,
+                         20.f);
+    canvas->DrawPath(builder.Detach(), paint);
+  } else {
+    canvas->DrawRoundRect(skity::Rect::MakeLTRB(40.f, 40.f, 160.f, 160.f), 20.f,
+                          20.f, paint);
+  }
 
   auto dl = recorder.FinishRecording();
   PathListContext context("plus_with_partial_coverage.png");
@@ -549,6 +556,14 @@ TEST(SimpleShapeGolden, PlusWithPartialCoverage) {
   config.enable_simple_shape_pipeline = true;
   EXPECT_TRUE(skity::testing::CompareGoldenTexture(
       dl.get(), 200, 200, context.expected_image_simple_path.c_str(), config));
+}
+
+TEST(SimpleShapeGolden, PlusWithPartialCoverage) {
+  TestPlusWithPartialCoverage(false);
+}
+
+TEST(SimpleShapeGolden, PathBuilderPlusWithPartialCoverage) {
+  TestPlusWithPartialCoverage(true);
 }
 
 // https://dev.w3.org/SVG/tools/svgweb/samples/svg-files/yinyang.svg

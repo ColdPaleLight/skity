@@ -94,6 +94,30 @@ class MockCanvas : public skity::Canvas {
   MOCK_METHOD(uint32_t, OnGetHeight, (), (const, override));
 };
 
+TEST(DisplayList, SharesPathAndKeepsRecordedValue) {
+  skity::PathBuilder builder;
+  builder.MoveTo(0, 0).QuadTo(50, 0, 50, 50).LineTo(0, 50).Close();
+  auto path = builder.Detach();
+  const auto expected = path;
+  const auto* points = path.Points();
+  skity::Paint paint;
+  skity::PictureRecorder recorder;
+  recorder.BeginRecording();
+  recorder.GetRecordingCanvas()->DrawPath(path, paint);
+  auto display_list = recorder.FinishRecording();
+  path.SetLastPt(100, 100);
+  path.SetFillType(skity::Path::PathFillType::kEvenOdd);
+  builder.AddCircle(20, 20, 10);
+
+  testing::StrictMock<MockCanvas> target;
+  EXPECT_CALL(target, OnDrawPath(_, _))
+      .WillOnce([&](const skity::Path& replayed, const skity::Paint&) {
+        EXPECT_EQ(replayed.Points(), points);
+        EXPECT_EQ(replayed, expected);
+      });
+  display_list->Draw(&target);
+}
+
 TEST(DisplayList, SharesTextBlob) {
   auto blob = std::make_shared<skity::TextBlob>(std::vector<skity::TextRun>{});
   const auto* original = blob.get();

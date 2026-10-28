@@ -14,6 +14,7 @@
 #include <skity/c/skity_recorder.h>
 #include <skity/c/skity_text.h>
 
+#include <algorithm>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -132,6 +133,28 @@ skity_canvas_delegate_callbacks SinkCallbacks() {
 
 }  // namespace
 
+TEST(CapiSerialization, PathCloneKeepsIndependentValue) {
+  PathGuard original;
+  skity_path_move_to(original.p, 1, 2);
+  skity_path_conic_to(original.p, 10, 20, 30, 40, 0.5f);
+  skity_path_set_fill_type(original.p, SKITY_PATH_FILL_TYPE_EVEN_ODD);
+  PathGuard copy{skity_path_clone(original.p)};
+  ASSERT_NE(copy.p, nullptr);
+  EXPECT_TRUE(skity_path_is_equal(original.p, copy.p));
+  skity_path_line_to(copy.p, 50, 60);
+  skity_path_set_fill_type(copy.p, SKITY_PATH_FILL_TYPE_WINDING);
+  EXPECT_EQ(skity_path_get_points(original.p, nullptr, 0), 3);
+  EXPECT_EQ(skity_path_get_points(copy.p, nullptr, 0), 4);
+  EXPECT_EQ(skity_path_get_fill_type(original.p),
+            SKITY_PATH_FILL_TYPE_EVEN_ODD);
+  skity_path_reset(copy.p);
+  EXPECT_EQ(skity_path_get_points(copy.p, nullptr, 0), 0);
+  skity_point points[3];
+  EXPECT_EQ(skity_path_get_points(original.p, points, 3), 3);
+  EXPECT_FLOAT_EQ(points[2].x, 30.f);
+  EXPECT_FLOAT_EQ(points[2].y, 40.f);
+}
+
 TEST(CapiSerialization, PathFlatDataExchange) {
   PathGuard path;
   skity_path_move_to(path.p, 10.f, 20.f);
@@ -169,11 +192,11 @@ TEST(CapiSerialization, PathFlatDataExchange) {
   EXPECT_FLOAT_EQ(weight, 0.5f);
 
   // Too-small buffers fill what fits and report how much was written.
-  std::memset(verbs, 0xFF, sizeof(verbs));
+  std::fill(std::begin(verbs), std::end(verbs), SKITY_PATH_VERB_DONE);
   EXPECT_EQ(skity_path_get_verbs(path.p, verbs, 3), 3);
   EXPECT_EQ(verbs[0], SKITY_PATH_VERB_MOVE);
   EXPECT_EQ(verbs[2], SKITY_PATH_VERB_QUAD);
-  EXPECT_EQ(verbs[3], static_cast<skity_path_verb>(-1));
+  EXPECT_EQ(verbs[3], SKITY_PATH_VERB_DONE);
 
   // A path without conics reports an empty weight array.
   PathGuard lines_only;
