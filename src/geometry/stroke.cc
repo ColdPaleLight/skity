@@ -383,6 +383,8 @@ class PathStroker {
 
   void Done(Path* dst, bool isLine) {
     this->FinishContour(false, isLine);
+    // StrokePath preserves the destination's fill rule.
+    outer_path_.SetFillType(dst->GetFillType());
     dst->Swap(outer_path_);
   }
 
