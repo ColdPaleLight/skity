@@ -6,19 +6,19 @@
 
 #include <array>
 #include <limits>
-#include <skity/graphic/path.hpp>
+#include <skity/graphic/path_builder.hpp>
 #include <skity/graphic/path_measure.hpp>
 #include <type_traits>
 
 namespace skity {
 namespace {
 
-// Keep the legacy signatures available during the downstream roll.
+// Path exposes compact points while the legacy value queries still work.
 static_assert(std::is_same_v<Point, Vec4>);
 static_assert(
     std::is_same_v<decltype(&Path::GetLastPt), bool (Path::*)(Point*) const>);
 static_assert(
-    std::is_same_v<decltype(&Path::Points), const Point* (Path::*)() const>);
+    std::is_same_v<decltype(&Path::Points), const Vec2* (Path::*)() const>);
 using LegacyIterNext = Path::Verb (Path::Iter::*)(Point*);
 using LegacyRawIterNext = Path::Verb (Path::RawIter::*)(Point*);
 static_assert(static_cast<LegacyIterNext>(&Path::Iter::Next) != nullptr);
@@ -30,13 +30,16 @@ constexpr Vec2 kSentinel{1234.f, -5678.f};
 
 Path MixedPath() {
   Path path;
-  path.MoveTo(1, 2)
-      .LineTo(3, 4)
-      .QuadTo(5, 6, 7, 8)
-      .ConicTo(9, 10, 11, 12, 0.5f)
-      .CubicTo(13, 14, 15, 16, 17, 18)
-      .Close();
-  path.MoveTo(-3, -4).LineTo(-5, -6);
+  path = skity::PathBuilder(std::move(path))
+             .MoveTo(1, 2)
+             .LineTo(3, 4)
+             .QuadTo(5, 6, 7, 8)
+             .ConicTo(9, 10, 11, 12, 0.5f)
+             .CubicTo(13, 14, 15, 16, 17, 18)
+             .Close()
+             .MoveTo(-3, -4)
+             .LineTo(-5, -6)
+             .Detach();
   return path;
 }
 
@@ -50,7 +53,13 @@ TEST(Path2D, PointQueriesHandleEmptyContoursAndInvalidIndices) {
   EXPECT_EQ(path.GetPoint2D(0), Vec2{});
   EXPECT_EQ(path.GetPoint2D(-1), Vec2{});
 
-  path.MoveTo(1, 2).LineTo(3, 4).MoveTo(5, 6).QuadTo(7, 8, 9, 10).Close();
+  path = skity::PathBuilder(std::move(path))
+             .MoveTo(1, 2)
+             .LineTo(3, 4)
+             .MoveTo(5, 6)
+             .QuadTo(7, 8, 9, 10)
+             .Close()
+             .Detach();
   EXPECT_TRUE(path.GetLastPt2D(&last));
   EXPECT_TRUE(path.GetLastPt2D(nullptr));
   EXPECT_EQ(last, (Vec2{9, 10}));
@@ -60,20 +69,21 @@ TEST(Path2D, PointQueriesHandleEmptyContoursAndInvalidIndices) {
   EXPECT_EQ(path.GetPoint2D(static_cast<int>(path.CountPoints())), Vec2{});
   EXPECT_EQ(path.GetPoint2D(std::numeric_limits<int>::max()), Vec2{});
 
-  path.LineTo(11, 12);
+  path = skity::PathBuilder(std::move(path)).LineTo(11, 12).Detach();
   EXPECT_EQ(path.GetLastMovePt2D(), (Vec2{5, 6}));
-  path.Reset();
+  path = {};
   EXPECT_EQ(path.GetLastMovePt2D(), Vec2{});
 }
 
 TEST(Path2D, QueriesCopyXYWithoutChangingLegacyGeometryOrDividingByW) {
   Path source;
-  source.MoveTo(2, 4).LineTo(6, 8);
+  source =
+      skity::PathBuilder(std::move(source)).MoveTo(2, 4).LineTo(6, 8).Detach();
   Matrix matrix;
   matrix.Set(2, 3, 7.f);
   matrix.Set(3, 3, 2.f);
   Path path = source.CopyWithMatrix(matrix);
-  const Point* storage = path.Points();
+  const Vec2* storage = path.Points();
   ASSERT_EQ(path.GetPoint(0), (Point{2, 4, 7, 2}));
   EXPECT_EQ(path.GetPoint2D(0), (Vec2{2, 4}));
   EXPECT_EQ(path.GetLastMovePt2D(), (Vec2{2, 4}));
@@ -85,7 +95,8 @@ TEST(Path2D, QueriesCopyXYWithoutChangingLegacyGeometryOrDividingByW) {
   EXPECT_EQ(points[0], (Vec2{2, 4}));
   EXPECT_EQ(points[1], (Vec2{6, 8}));
   EXPECT_EQ(path.Points(), storage);
-  EXPECT_EQ(storage[1], (Point{6, 8, 7, 2}));
+  EXPECT_EQ(storage[1], (Vec2{6, 8}));
+  EXPECT_EQ(path.GetPoint(1), (Point{6, 8, 7, 2}));
 
   Path::RawIter iter(path);
   Vec2 segment[4];
@@ -95,7 +106,11 @@ TEST(Path2D, QueriesCopyXYWithoutChangingLegacyGeometryOrDividingByW) {
 
 TEST(Path2D, CopyPointsRespectsCapacityAndOwnsItsOutput) {
   Path path;
-  path.MoveTo(1, 2).LineTo(3, 4).ConicTo(5, 6, 7, 8, 0.5f);
+  path = skity::PathBuilder(std::move(path))
+             .MoveTo(1, 2)
+             .LineTo(3, 4)
+             .ConicTo(5, 6, 7, 8, 0.5f)
+             .Detach();
   std::array<Vec2, 6> output;
   output.fill(kSentinel);
   EXPECT_EQ(path.CopyPoints2D(nullptr, 0), 4u);
@@ -110,7 +125,7 @@ TEST(Path2D, CopyPointsRespectsCapacityAndOwnsItsOutput) {
   EXPECT_EQ(output[3], (Vec2{7, 8}));
   EXPECT_EQ(output[4], kSentinel);
   EXPECT_EQ(output[5], kSentinel);
-  path.Reset();
+  path = {};
   EXPECT_EQ(path.CopyPoints2D(output.data(), output.size()), 0u);
   EXPECT_EQ(output[0], (Vec2{1, 2}));
   EXPECT_EQ(output[3], (Vec2{7, 8}));
@@ -179,7 +194,7 @@ TEST(Path2D, IterationPreservesExplicitAndForcedClosing) {
                      Path::Iter{path, force_close});
   }
   Path line;
-  line.MoveTo(1, 2).LineTo(3, 4);
+  line = skity::PathBuilder(std::move(line)).MoveTo(1, 2).LineTo(3, 4).Detach();
   Path::Iter iter(line, true);
   Vec2 points[4];
   EXPECT_TRUE(iter.IsClosedContour());
@@ -195,7 +210,11 @@ TEST(Path2D, IterationPreservesExplicitAndForcedClosing) {
 
 TEST(Path2D, IteratorsCanMixLegacyAndPlanarReads) {
   Path path;
-  path.MoveTo(1, 2).LineTo(3, 4).QuadTo(5, 6, 7, 8);
+  path = skity::PathBuilder(std::move(path))
+             .MoveTo(1, 2)
+             .LineTo(3, 4)
+             .QuadTo(5, 6, 7, 8)
+             .Detach();
   Path::RawIter iter(path);
   Point legacy[4];
   Vec2 planar[4];
@@ -213,12 +232,12 @@ TEST(Path2D, LineQueryCopiesEndpointsOnlyForASingleLine) {
   EXPECT_FALSE(path.IsLine2D(line));
   EXPECT_EQ(line[0], kSentinel);
   EXPECT_EQ(line[1], kSentinel);
-  path.MoveTo(1, 2).LineTo(3, 4);
+  path = skity::PathBuilder(std::move(path)).MoveTo(1, 2).LineTo(3, 4).Detach();
   EXPECT_TRUE(path.IsLine2D(nullptr));
   ASSERT_TRUE(path.IsLine2D(line));
   EXPECT_EQ(line[0], (Vec2{1, 2}));
   EXPECT_EQ(line[1], (Vec2{3, 4}));
-  path.Close();
+  path = skity::PathBuilder(std::move(path)).Close().Detach();
   EXPECT_FALSE(path.IsLine2D(line));
   EXPECT_EQ(line[0], (Vec2{1, 2}));
   EXPECT_EQ(line[1], (Vec2{3, 4}));
@@ -257,10 +276,10 @@ TEST(PathMeasure2D, FailureLeavesOutputsUnchanged) {
   EXPECT_EQ(position, kSentinel);
   EXPECT_EQ(tangent, kSentinel);
   Path path;
-  path.MoveTo(1, 2).LineTo(1, 2);
+  path = skity::PathBuilder(std::move(path)).MoveTo(1, 2).LineTo(1, 2).Detach();
   measure.SetPath(&path, false);
   EXPECT_FALSE(measure.GetPosTan2D(0, &position, &tangent));
-  path.LineTo(3, 4);
+  path = skity::PathBuilder(std::move(path)).LineTo(3, 4).Detach();
   measure.SetPath(&path, false);
   EXPECT_FALSE(measure.GetPosTan2D(std::numeric_limits<float>::quiet_NaN(),
                                    &position, &tangent));

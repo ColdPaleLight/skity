@@ -8,7 +8,7 @@
 #include <skity/graphic/path.hpp>
 #include <skity/graphic/path_measure.hpp>
 
-#include "handle.hpp"
+#include "path_handle.hpp"
 
 namespace {
 
@@ -18,11 +18,6 @@ skity::PathMeasure* measure_of(skity_path_measure handle) {
   return w ? static_cast<skity::PathMeasure*>(w->impl.get()) : nullptr;
 }
 
-std::shared_ptr<skity::Path> path_shared(skity_path handle) {
-  return skity::capi::get_impl<skity_path_s, skity::Path>(
-      handle, SKITY_OBJECT_TYPE_PATH);
-}
-
 }  // namespace
 
 extern "C" {
@@ -30,7 +25,7 @@ extern "C" {
 skity_path_measure skity_path_measure_create(skity_path path,
                                              uint32_t force_closed,
                                              float res_scale) {
-  auto p = path_shared(path);
+  const auto* p = skity::capi::read_path_handle(path);
   std::shared_ptr<skity::PathMeasure> impl;
   if (p != nullptr) {
     impl =
@@ -53,8 +48,8 @@ uint32_t skity_path_measure_set_path(skity_path_measure measure,
   if (m == nullptr) {
     return 0u;
   }
-  auto p = path_shared(path);
-  m->SetPath(p.get(), force_closed != 0);
+  const auto* p = skity::capi::read_path_handle(path);
+  m->SetPath(p, force_closed != 0);
   return 1u;
 }
 
@@ -90,12 +85,11 @@ uint32_t skity_path_measure_get_segment(skity_path_measure measure,
                                         skity_path dst,
                                         uint32_t start_with_move_to) {
   auto* m = measure_of(measure);
-  auto d = path_shared(dst);
-  if (m == nullptr || d == nullptr) {
-    return 0u;
-  }
-  return m->GetSegment(start_d, stop_d, d.get(), start_with_move_to != 0) ? 1u
-                                                                          : 0u;
+  if (!m) return 0u;
+  auto* d = skity::capi::edit_path_handle(dst);
+  return m->GetSegmentToBuilder(start_d, stop_d, d, start_with_move_to != 0)
+             ? 1u
+             : 0u;
 }
 
 uint32_t skity_path_measure_get_segment_to_builder(

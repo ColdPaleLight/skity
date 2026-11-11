@@ -9,6 +9,7 @@
 #include <array>
 #include <cmath>
 #include <filesystem>
+#include <skity/graphic/path_builder.hpp>
 #include <skity/recorder/picture_recorder.hpp>
 #include <skity/skity.hpp>
 #include <string>
@@ -563,9 +564,10 @@ TEST(SimpleShapeGolden, DrawYinAndYang) {
   auto svg_path_sp = skity::capi::get_impl<skity_path_s, skity::Path>(
       svg_path, SKITY_OBJECT_TYPE_PATH);
 
-  skity::Path temp;
-  temp.AddPath(*svg_path_sp);
-  temp.AddCircle(50, 26, 6);
+  skity::PathBuilder temp_builder;
+  temp_builder.AddPath(*svg_path_sp);
+  temp_builder.AddCircle(50, 26, 6);
+  skity::Path temp = temp_builder.Detach();
 
   std::shared_ptr<skity::Path> temp_view(&temp, [](skity::Path*) {});
   skity_path temp_handle = skity::capi::alloc_handle<skity_path_s>(
@@ -685,12 +687,15 @@ TEST(SimpleShapeGolden, ThinStrokeDeviceWidthAndCoverage) {
                 paint.SetStrokeWidth(stroke.width);
                 auto rect = skity::Rect::MakeWH(8.f, 8.f);
                 if (shape == 0) {
-                  skity::Path source;
-                  source.AddRect(rect);
+                  skity::PathBuilder source_builder;
+                  source_builder.AddRect(rect);
+                  skity::Path source = source_builder.Detach();
                   canvas->DrawPath(source, paint);
                 } else if (shape == 1) {
-                  skity::Path path;
-                  path.AddRRect(skity::RRect::MakeRectXY(rect, 2.f, 2.f));
+                  skity::PathBuilder path_builder;
+                  path_builder.AddRRect(
+                      skity::RRect::MakeRectXY(rect, 2.f, 2.f));
+                  skity::Path path = path_builder.Detach();
                   canvas->DrawPath(path, paint);
                 } else {
                   canvas->DrawRRect(skity::RRect::MakeRectXY(rect, 2.f, 2.f),
@@ -737,8 +742,9 @@ TEST(SimpleShapeGolden, RotatedRRectAAOutset) {
     canvas->Clear(skity::Color_TRANSPARENT);
     canvas->Translate(64.2f, 64.6f);
     canvas->Rotate(45.f);
-    skity::Path path;
-    path.AddRoundRect(skity::Rect::MakeLTRB(-20, -20, 20, 20), 2, 2);
+    skity::PathBuilder path_builder;
+    path_builder.AddRoundRect(skity::Rect::MakeLTRB(-20, -20, 20, 20), 2, 2);
+    skity::Path path = path_builder.Detach();
     skity::Paint paint;
     paint.SetAntiAlias(true);
     paint.SetColor(skity::Color_WHITE);
@@ -771,8 +777,9 @@ TEST(SimpleShapeGolden, AffineRRectGradientCoverage) {
     canvas->Translate(64.f, 64.f);
     canvas->Rotate(45.f);
     canvas->Scale(2.f, 0.5f);
-    skity::Path path;
-    path.AddRoundRect(skity::Rect::MakeLTRB(-20, -20, 20, 20), 2, 2);
+    skity::PathBuilder path_builder;
+    path_builder.AddRoundRect(skity::Rect::MakeLTRB(-20, -20, 20, 20), 2, 2);
+    skity::Path path = path_builder.Detach();
     skity::Paint paint;
     paint.SetAntiAlias(true);
     paint.SetColor(skity::Color_WHITE);
@@ -859,8 +866,9 @@ TEST(SimpleShapeGolden, AffineRRectCoverageMatchesImplicitReference) {
                 auto rrect = skity::RRect::MakeRectXY(
                     skity::Rect::MakeLTRB(-20, -20, 20, 20), radius, radius);
                 if (draw_path) {
-                  skity::Path path;
-                  path.AddRRect(rrect);
+                  skity::PathBuilder path_builder;
+                  path_builder.AddRRect(rrect);
+                  skity::Path path = path_builder.Detach();
                   canvas->DrawPath(path, paint);
                 } else {
                   canvas->DrawRRect(rrect, paint);

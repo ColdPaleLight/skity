@@ -17,7 +17,7 @@
 #include <skity/text/font.hpp>
 #include <skity/text/text_blob.hpp>
 
-#include "handle.hpp"
+#include "path_handle.hpp"
 
 namespace {
 
@@ -33,9 +33,8 @@ skity::Paint* paint_of(skity_paint handle) {
   return w ? static_cast<skity::Paint*>(w->impl.get()) : nullptr;
 }
 
-skity::Path* path_of(skity_path handle) {
-  auto* w = skity::capi::resolve<skity_path_s>(handle, SKITY_OBJECT_TYPE_PATH);
-  return w ? static_cast<skity::Path*>(w->impl.get()) : nullptr;
+const skity::Path* path_of(skity_path handle) {
+  return skity::capi::read_path_handle(handle);
 }
 
 skity::Canvas::ClipOp to_clip_op(skity_clip_op op) {

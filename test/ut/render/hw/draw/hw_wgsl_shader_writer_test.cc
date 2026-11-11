@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <iostream>
 #include <memory>
+#include <skity/graphic/path_builder.hpp>
 #include <skity/skity.hpp>
 #include <sstream>
 #include <string>
@@ -1741,11 +1742,12 @@ fn fs_main(input: FSInput) -> @location(0) vec4<f32> {
 }
 
 skity::Path MakePath() {
-  skity::Path path;
-  path.MoveTo(100, 100);
-  path.LineTo(200, 200);
-  path.LineTo(100, 200);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(100, 100);
+  path_builder.LineTo(200, 200);
+  path_builder.LineTo(100, 200);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
   return path;
 }
 

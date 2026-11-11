@@ -2,6 +2,7 @@
 // Licensed under the Apache License Version 2.0 that can be found in the
 // LICENSE file in the root directory of this source tree.
 
+#include <skity/graphic/path_builder.hpp>
 #include <skity/skity.hpp>
 
 namespace skity::example::clip {
@@ -75,18 +76,19 @@ void draw_clip_difference(skity::Canvas* canvas) {
 
   canvas->Rotate(degree, 200, 200);
 
-  skity::Path path;
-  path.MoveTo(199, 34);
-  path.LineTo(253, 143);
-  path.LineTo(374, 160);
-  path.LineTo(287, 244);
-  path.LineTo(307, 365);
-  path.LineTo(199, 309);
-  path.LineTo(97, 365);
-  path.LineTo(112, 245);
-  path.LineTo(26, 161);
-  path.LineTo(146, 143);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(199, 34);
+  path_builder.LineTo(253, 143);
+  path_builder.LineTo(374, 160);
+  path_builder.LineTo(287, 244);
+  path_builder.LineTo(307, 365);
+  path_builder.LineTo(199, 309);
+  path_builder.LineTo(97, 365);
+  path_builder.LineTo(112, 245);
+  path_builder.LineTo(26, 161);
+  path_builder.LineTo(146, 143);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
 
   paint.SetStyle(skity::Paint::kFill_Style);
   paint.SetColor(skity::Color_BLUE);

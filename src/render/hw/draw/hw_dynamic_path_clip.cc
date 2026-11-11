@@ -4,6 +4,8 @@
 
 #include "src/render/hw/draw/hw_dynamic_path_clip.hpp"
 
+#include <skity/graphic/path_builder.hpp>
+
 #include "src/render/hw/draw/fragment/wgsl_stencil_fragment.hpp"
 #include "src/render/hw/draw/geometry/wgsl_clip_geometry.hpp"
 #include "src/render/hw/draw/geometry/wgsl_tess_path_fill_geometry.hpp"
@@ -21,7 +23,8 @@ HWDynamicPathClip::HWDynamicPathClip(Matrix transform, Path path,
       op_(op),
       bounds_(),
       use_gpu_tessellation_(use_gpu_tessellation) {
-  bounds_.AddRect(bounds);
+  PathBuilder builder;
+  bounds_ = builder.AddRect(bounds).Detach();
 }
 
 void HWDynamicPathClip::OnGenerateDrawStep(ArrayList<HWDrawStep *, 2> &steps,

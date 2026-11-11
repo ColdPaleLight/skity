@@ -9,6 +9,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <memory>
 #include <skity/effect/shader.hpp>
+#include <skity/graphic/path_builder.hpp>
 #include <utility>
 
 #include "src/geometry/glm_helper.hpp"
@@ -406,8 +407,8 @@ std::shared_ptr<Shader> HWLayer::CreateDrawLayerShader(
 
 EmulatedLoadInfo HWLayer::CreateEmulatedLoadInfo() {
   const auto& bounds = GetBounds();
-  Path path;
-  path.AddRect(bounds);
+  PathBuilder builder;
+  Path path = builder.AddRect(bounds).Detach();
 
   Paint paint;
   paint.SetStyle(Paint::kFill_Style);

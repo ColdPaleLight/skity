@@ -10,6 +10,7 @@
 #include <skity/geometry/rect.hpp>
 #include <skity/graphic/paint.hpp>
 #include <skity/graphic/path.hpp>
+#include <skity/graphic/path_builder.hpp>
 #include <skity/graphic/path_measure.hpp>
 
 #include "src/geometry/math.hpp"
@@ -65,8 +66,8 @@ void DashPathEffect::FlattenToBuffer(WriteBuffer& buffer) const {
   buffer.WriteFloatArray(intervals_.get(), count_);
 }
 
-bool DashPathEffect::OnFilterPath(Path* dst, const Path& src, bool stroke,
-                                  Paint const&) const {
+bool DashPathEffect::OnFilterPath(PathBuilder* dst, const Path& src,
+                                  bool stroke, Paint const&) const {
   // do nothing if src wants to be filled
   if (!stroke) {
     return false;
@@ -74,10 +75,7 @@ bool DashPathEffect::OnFilterPath(Path* dst, const Path& src, bool stroke,
 
   float dash_count = 0;
 
-  Path cull_path_storage;
-  const Path* src_ptr = &src;
-
-  PathMeasure meas{*src_ptr, false};
+  PathMeasure meas{src, false};
 
   do {
     bool skip_first_segment = meas.IsClosed();
@@ -107,8 +105,9 @@ bool DashPathEffect::OnFilterPath(Path* dst, const Path& src, bool stroke,
         added_segment = true;
 
         // TODO(tangruiwen): handle special line
-        meas.GetSegment(static_cast<float>(distance),
-                        static_cast<float>(distance + dlen), dst, true);
+        meas.GetSegmentToBuilder(static_cast<float>(distance),
+                                 static_cast<float>(distance + dlen), dst,
+                                 true);
       }
 
       distance += dlen;
@@ -131,7 +130,7 @@ bool DashPathEffect::OnFilterPath(Path* dst, const Path& src, bool stroke,
     // initial segment
     if (meas.IsClosed() && is_even(initial_dash_index_) &&
         initial_dash_length_ >= 0) {
-      meas.GetSegment(0, initial_dash_length_, dst, !added_segment);
+      meas.GetSegmentToBuilder(0, initial_dash_length_, dst, !added_segment);
     }
   } while (meas.NextContour());
 

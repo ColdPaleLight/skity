@@ -10,11 +10,13 @@
 #include <skity/effect/shader.hpp>
 #include <skity/geometry/matrix.hpp>
 #include <skity/geometry/stroke.hpp>
+#include <skity/graphic/path_builder.hpp>
 #include <skity/text/font.hpp>
 #include <skity/text/text_blob.hpp>
 
 #include "src/effect/image_filter_base.hpp"
 #include "src/gpu/gpu_surface_impl.hpp"
+#include "src/graphic/path_priv.hpp"
 #include "src/logging.hpp"
 #include "src/render/canvas_state.hpp"
 #include "src/render/hw/coverage/coverage_aa_renderer.hpp"
@@ -142,11 +144,8 @@ void HWCanvas::OnDrawLine(float x0, float y0, float x1, float y1,
     return;
   }
 
-  Path path;
-  path.MoveTo(x0, y0);
-  path.LineTo(x1, y1);
-
-  this->OnDrawPath(path, paint);
+  PathBuilder builder;
+  this->OnDrawPath(builder.MoveTo(x0, y0).LineTo(x1, y1).Detach(), paint);
 }
 
 void HWCanvas::OnDrawPath(const Path& path, const Paint& paint) {
@@ -673,10 +672,10 @@ bool HWCanvas::NeedsFallbackToPathDraw(const RRect& rrect, const Paint& paint,
 void HWCanvas::DrawRRectInternal(const RRect& rrect, const Paint& paint,
                                  const Matrix& transform) {
   if (NeedsFallbackToPathDraw(rrect, paint, transform)) {
-    Path path;
-    path.AddRRect(rrect);
-    path.SetConvexityType(Path::ConvexityType::kConvex);
-    DrawPathInternal(path, paint, transform);
+    PathBuilder builder;
+    builder.AddRRect(rrect);
+    PathPriv::SetConvexityType(builder, Path::ConvexityType::kConvex);
+    DrawPathInternal(builder.Detach(), paint, transform);
     return;
   }
 

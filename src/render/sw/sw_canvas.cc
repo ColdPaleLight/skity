@@ -11,6 +11,7 @@
 #include <skity/effect/path_effect.hpp>
 #include <skity/geometry/stroke.hpp>
 #include <skity/graphic/bitmap.hpp>
+#include <skity/graphic/path_builder.hpp>
 #include <skity/text/font.hpp>
 #include <skity/text/text_blob.hpp>
 #include <skity/text/text_run.hpp>
@@ -288,11 +289,8 @@ void SWCanvas::OnDrawLine(float x0, float y0, float x1, float y1,
                           Paint const& paint) {
   SKITY_TRACE_EVENT(SWCanvas_OnDrawLine);
 
-  Path path;
-  path.MoveTo(x0, y0);
-  path.LineTo(x1, y1);
-
-  this->OnDrawPath(path, paint);
+  PathBuilder builder;
+  this->OnDrawPath(builder.MoveTo(x0, y0).LineTo(x1, y1).Detach(), paint);
 }
 
 void SWCanvas::OnClipRect(const Rect& rect, ClipOp op) {
@@ -421,8 +419,8 @@ void SWCanvas::OnDrawPaint(const Paint& paint) {
 
   skity::Rect bounds = skity::Rect::MakeWH(Width(), Height());
 
-  Path path;
-  path.AddRect(bounds);
+  PathBuilder builder;
+  Path path = builder.AddRect(bounds).Detach();
 
   SWRaster raster;
   raster.RastePath(path, Matrix{});
@@ -677,8 +675,8 @@ void SWCanvas::OnDrawImageRect(std::shared_ptr<Image> image, const Rect& src,
                                    TileMode::kDecal, local_matrix);
   work_paint.SetShader(std::move(shader));
 
-  Path path;
-  path.AddRect(dst);
+  PathBuilder builder;
+  Path path = builder.AddRect(dst).Detach();
 
   this->OnDrawPath(path, work_paint);
 }

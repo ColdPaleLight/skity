@@ -9,13 +9,17 @@
 #include <cstring>
 #include <glm/gtc/matrix_transform.hpp>
 #include <skity/graphic/path.hpp>
+#include <skity/graphic/path_builder.hpp>
 #include <sstream>
 #include <tuple>
+#include <type_traits>
+#include <utility>
 
 #include "src/geometry/conic.hpp"
 #include "src/geometry/geometry.hpp"
 #include "src/geometry/math.hpp"
 #include "src/geometry/point_priv.hpp"
+#include "src/graphic/path_data.hpp"
 #include "src/graphic/path_priv.hpp"
 #include "src/graphic/path_scanner.hpp"
 #include "src/logging.hpp"
@@ -105,18 +109,18 @@ static int build_arc_conics(const Rect& oval, const Vec2& start,
 template <size_t N>
 class Path_PointIterator {
  public:
-  using Array = std::array<Point, N>;
+  using Array = std::array<Vec2, N>;
 
   Path_PointIterator(Path::Direction dir, size_t startIndex)
       : current_(startIndex % N),
         advance_(dir == Path::Direction::kCW ? 1 : N - 1) {}
 
-  const Point& current() const {
+  const Vec2& current() const {
     assert(current_ < N);
     return pts[current_];
   }
 
-  const Point& next() {
+  const Vec2& next() {
     current_ = (current_ + advance_) % N;
     return this->current();
   }
@@ -134,10 +138,10 @@ class Path_RectPointIterator : public Path_PointIterator<4> {
   Path_RectPointIterator(const Rect& rect, Path::Direction dir,
                          size_t startIndex)
       : Path_PointIterator<4>(dir, startIndex) {
-    pts[0] = Point{rect.Left(), rect.Top(), 0, 1};
-    pts[1] = Point{rect.Right(), rect.Top(), 0, 1};
-    pts[2] = Point{rect.Right(), rect.Bottom(), 0, 1};
-    pts[3] = Point{rect.Left(), rect.Bottom(), 0, 1};
+    pts[0] = Vec2{rect.Left(), rect.Top()};
+    pts[1] = Vec2{rect.Right(), rect.Top()};
+    pts[2] = Vec2{rect.Right(), rect.Bottom()};
+    pts[3] = Vec2{rect.Left(), rect.Bottom()};
   }
 };
 
@@ -149,10 +153,10 @@ class Path_OvalPointIterator : public Path_PointIterator<4> {
     const float cx = oval.CenterX();
     const float cy = oval.CenterY();
 
-    pts[0] = Point{cx, oval.Top(), 0, 1};
-    pts[1] = Point{oval.Right(), cy, 0, 1};
-    pts[2] = Point{cx, oval.Bottom(), 0, 1};
-    pts[3] = Point{oval.Left(), cy, 0, 1};
+    pts[0] = Vec2{cx, oval.Top()};
+    pts[1] = Vec2{oval.Right(), cy};
+    pts[2] = Vec2{cx, oval.Bottom()};
+    pts[3] = Vec2{oval.Left(), cy};
   }
 };
 
@@ -167,358 +171,20 @@ class Path_RRectPointIterator : public Path_PointIterator<8> {
     float R = bounds.Right();
     float B = bounds.Bottom();
 
-    pts[0] = Point{L + rrect.Radii(RRect::kUpperLeft).x, T, 0, 1.f};
-    pts[1] = Point{R - rrect.Radii(RRect::kUpperRight).x, T, 0, 1.f};
-    pts[2] = Point{R, T + rrect.Radii(RRect::kUpperRight).y, 0, 1.f};
-    pts[3] = Point{R, B - rrect.Radii(RRect::kLowerRight).y, 0, 1.f};
-    pts[4] = Point{R - rrect.Radii(RRect::kLowerRight).x, B, 0, 1.f};
-    pts[5] = Point{L + rrect.Radii(RRect::kLowerLeft).x, B, 0, 1.f};
-    pts[6] = Point{L, B - rrect.Radii(RRect::kLowerLeft).y, 0, 1.f};
-    pts[7] = Point{L, T + rrect.Radii(RRect::kUpperLeft).y, 0, 1.f};
+    pts[0] = Vec2{L + rrect.Radii(RRect::kUpperLeft).x, T};
+    pts[1] = Vec2{R - rrect.Radii(RRect::kUpperRight).x, T};
+    pts[2] = Vec2{R, T + rrect.Radii(RRect::kUpperRight).y};
+    pts[3] = Vec2{R, B - rrect.Radii(RRect::kLowerRight).y};
+    pts[4] = Vec2{R - rrect.Radii(RRect::kLowerRight).x, B};
+    pts[5] = Vec2{L + rrect.Radii(RRect::kLowerLeft).x, B};
+    pts[6] = Vec2{L, B - rrect.Radii(RRect::kLowerLeft).y};
+    pts[7] = Vec2{L, T + rrect.Radii(RRect::kUpperLeft).y};
   }
 };
-
-class AutoDisableDirectionCheck {
- public:
-  explicit AutoDisableDirectionCheck(Path* p)
-      : path{p}, saved{p->GetFirstDirection()} {}
-  ~AutoDisableDirectionCheck() { path->SetFirstDirection(saved); }
-
- private:
-  Path* path;
-  Path::Direction saved;
-};
-
-class AutoPathBoundsUpdate {
- public:
-  AutoPathBoundsUpdate(Path* p, const Rect& r) : path{p}, rect{r} {
-    rect.Sort();
-    has_valid_bounds = path->IsFinite();
-    empty = path->IsEmpty();
-    if (has_valid_bounds && !empty) {
-      JoinNoEmptyChecks(std::addressof(rect), path->GetBounds());
-    }
-    degenerate = is_degenerate(*path);
-  }
-
-  ~AutoPathBoundsUpdate() {
-    if ((this->empty || has_valid_bounds) && rect.IsFinite()) {
-      // TODO(tangruiwen) path->setBounds(rect);
-    }
-  }
-
- private:
-  static void JoinNoEmptyChecks(Rect* dst, const Rect& src) {
-    float s_left = src.Left();
-    float s_top = src.Top();
-    float s_right = src.Right();
-    float s_bottom = src.Bottom();
-    float d_left = dst->Left();
-    float d_top = dst->Top();
-    float d_right = dst->Right();
-    float d_bottom = dst->Bottom();
-
-    dst->SetLTRB(glm::min(s_left, d_left), glm::min(s_top, d_top),
-                 glm::min(d_right, s_right), glm::min(d_bottom, s_bottom));
-  }
-
-  static bool is_degenerate(const Path& path) { return path.CountVerbs() <= 1; }
-
- private:
-  Path* path;
-  Rect rect;
-  bool has_valid_bounds;
-  bool degenerate;
-  bool empty;
-};
-
-Path::Iter::Iter()
-    : pts_{nullptr},
-      verbs_{nullptr},
-      verb_stop_{nullptr},
-      conic_weights_{nullptr},
-      force_close_(false),
-      need_close_(false),
-      close_line_(false),
-      move_to_(),
-      last_pt_(),
-      segment_state_(SegmentState::kEmptyContour) {}
-
-Path::Iter::Iter(const Path& path, bool forceClose) : Iter() {
-  this->SetPath(path, forceClose);
-}
 
 namespace {
 
-void CopySegmentPoints2D(Path::Verb verb, const Point src[4], Vec2 dst[4]) {
-  size_t count = 0;
-  switch (verb) {
-    case Path::Verb::kMove:
-      count = 1;
-      break;
-    case Path::Verb::kLine:
-      count = 2;
-      break;
-    case Path::Verb::kQuad:
-    case Path::Verb::kConic:
-      count = 3;
-      break;
-    case Path::Verb::kCubic:
-      count = 4;
-      break;
-    case Path::Verb::kClose:
-    case Path::Verb::kDone:
-      break;
-  }
-  for (size_t i = 0; i < count; ++i) {
-    dst[i] = Vec2{src[i]};
-  }
-}
-
-}  // namespace
-
-Path::Verb Path::Iter::Next(Vec2 pts[4]) {
-  Point points[4];
-  auto verb = Next(points);
-  CopySegmentPoints2D(verb, points, pts);
-  return verb;
-}
-
-void Path::Iter::SetPath(Path const& path, bool forceClose) {
-  pts_ = path.points_.data();
-  verbs_ = path.verbs_.data();
-  verb_stop_ = path.verbs_.data() + path.CountVerbs();
-  conic_weights_ = path.conic_weights_.data();
-  if (conic_weights_) {
-    conic_weights_ -= 1;
-  }
-
-  force_close_ = forceClose;
-  need_close_ = false;
-  segment_state_ = SegmentState::kEmptyContour;
-}
-
-Path::Verb Path::Iter::Next(Point pts[4]) {
-  if (verbs_ == verb_stop_) {
-    // Close the curve if requested and if there is some curve to close
-    if (need_close_ && segment_state_ == SegmentState::kAfterPrimitive) {
-      if (Verb::kLine == this->AutoClose(pts)) {
-        return Verb::kLine;
-      }
-      need_close_ = false;
-      return Verb::kClose;
-    }
-    return Verb::kDone;
-  }
-
-  Verb verb = *verbs_++;
-  const Point* src_pts = pts_;
-  Point* p_pts = pts;
-
-  switch (verb) {
-    case Verb::kMove:
-      if (need_close_) {
-        verbs_--;  // move back one verb
-        verb = this->AutoClose(p_pts);
-        if (verb == Verb::kClose) {
-          need_close_ = false;
-        }
-        return verb;
-      }
-      if (verbs_ == verb_stop_) {
-        return Verb::kDone;
-      }
-      move_to_ = *src_pts;
-      p_pts[0] = *src_pts;
-      src_pts += 1;
-      segment_state_ = SegmentState::kAfterMove;
-      last_pt_ = move_to_;
-      need_close_ = force_close_;
-      break;
-    case Verb::kLine:
-      p_pts[0] = this->ConsMoveTo();
-      p_pts[1] = src_pts[0];
-      last_pt_ = src_pts[0];
-      close_line_ = false;
-      src_pts += 1;
-      break;
-    case Verb::kConic:
-      conic_weights_ += 1;
-      // fall-through
-      [[fallthrough]];
-    case Verb::kQuad:
-      p_pts[0] = this->ConsMoveTo();
-      std::memcpy(std::addressof(p_pts[1]), src_pts, 2 * sizeof(Point));
-      last_pt_ = src_pts[1];
-      src_pts += 2;
-      break;
-    case Verb::kCubic:
-      p_pts[0] = this->ConsMoveTo();
-      std::memcpy(std::addressof(p_pts[1]), src_pts, 3 * sizeof(Point));
-      last_pt_ = src_pts[2];
-      src_pts += 3;
-      break;
-    case Verb::kClose:
-      verb = this->AutoClose(p_pts);
-      if (verb == Verb::kLine) {
-        verbs_--;
-      } else {
-        need_close_ = false;
-        segment_state_ = SegmentState::kEmptyContour;
-      }
-      last_pt_ = move_to_;
-      break;
-    case Verb::kDone:
-      break;
-  }
-  pts_ = src_pts;
-  return verb;
-}
-
-float Path::Iter::ConicWeight() const { return *conic_weights_; }
-
-bool Path::Iter::IsClosedContour() const {
-  if (verbs_ == nullptr || verbs_ == verb_stop_) {
-    return false;
-  }
-
-  if (force_close_) {
-    return true;
-  }
-
-  auto p_verbs = verbs_;
-  auto p_stop = verb_stop_;
-
-  if (*p_verbs == Verb::kMove) {
-    p_verbs += 1;
-  }
-
-  while (p_verbs < p_stop) {
-    auto v = *p_verbs++;
-    if (v == Verb::kMove) {
-      break;
-    }
-    if (v == Verb::kClose) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-Path::Verb Path::Iter::AutoClose(Point* pts) {
-  if (last_pt_ != move_to_) {
-    if (FloatIsNan(last_pt_.x) || FloatIsNan(last_pt_.y) ||
-        FloatIsNan(move_to_.x) || FloatIsNan(move_to_.y)) {
-      return Verb::kClose;
-    }
-
-    pts[0] = last_pt_;
-    pts[1] = move_to_;
-    last_pt_ = move_to_;
-    close_line_ = true;
-    return Verb::kLine;
-  } else {
-    pts[0] = move_to_;
-    return Verb::kClose;
-  }
-}
-
-const Point& Path::Iter::ConsMoveTo() {
-  if (segment_state_ == SegmentState::kAfterMove) {
-    segment_state_ = SegmentState::kAfterPrimitive;
-    return move_to_;
-  }
-
-  return pts_[-1];
-}
-
-bool Path::Iter::IsCloseLine() const { return close_line_; }
-
-Path::RawIter::RawIter()
-    : pts_(nullptr),
-      verbs_(nullptr),
-      verb_stop_(nullptr),
-      conic_weights_(nullptr) {}
-
-void Path::RawIter::SetPath(const Path& path) {
-  pts_ = path.points_.data();
-  if (path.CountVerbs() > 0) {
-    verbs_ = path.verbs_.data();
-    verb_stop_ = path.verbs_.data() + path.CountVerbs();
-  } else {
-    verbs_ = verb_stop_ = nullptr;
-  }
-
-  conic_weights_ = path.conic_weights_.data();
-  if (conic_weights_) {
-    conic_weights_ -= 1;
-  }
-
-  if (!path.IsFinite()) {
-    verb_stop_ = verbs_;
-  }
-}
-
-Path::Verb Path::RawIter::Next(Point pts[4]) {
-  if (verbs_ == verb_stop_) {
-    return Verb::kDone;
-  }
-
-  auto verb = *verbs_++;
-  auto src_pts = pts_;
-  switch (verb) {
-    case Verb::kMove:
-      pts[0] = src_pts[0];
-      src_pts += 1;
-      break;
-
-    case Verb::kLine:
-      pts[0] = src_pts[-1];
-      pts[1] = src_pts[0];
-      src_pts += 1;
-      break;
-
-    case Verb::kConic:
-      conic_weights_ += 1;
-      // fall-through
-      [[fallthrough]];
-    case Verb::kQuad:
-      pts[0] = src_pts[-1];
-      pts[1] = src_pts[0];
-      pts[2] = src_pts[1];
-      src_pts += 2;
-      break;
-    case Verb::kCubic:
-      pts[0] = src_pts[-1];
-      pts[1] = src_pts[0];
-      pts[2] = src_pts[1];
-      pts[3] = src_pts[2];
-      src_pts += 3;
-      break;
-    case Verb::kClose:
-    case Verb::kDone:
-    default:
-      break;
-  }
-  pts_ = src_pts;
-  return verb;
-}
-
-Path::Verb Path::RawIter::Peek() const {
-  return verbs_ < verb_stop_ ? *verbs_ : Verb::kDone;
-}
-
-Path::Verb Path::RawIter::Next(Vec2 pts[4]) {
-  Point points[4];
-  auto verb = Next(points);
-  CopySegmentPoints2D(verb, points, pts);
-  return verb;
-}
-
-float Path::RawIter::ConicWeight() const { return *conic_weights_; }
-
-static int _pts_in_verb(Path::Verb verb) {
+constexpr int PointsInVerb(Path::Verb verb) {
   switch (verb) {
     case Path::Verb::kMove:
     case Path::Verb::kLine:
@@ -535,46 +201,265 @@ static int _pts_in_verb(Path::Verb verb) {
   return 0;
 }
 
-Path& Path::MoveTo(float x, float y) {
-  if (!verbs_.empty() && verbs_.back() == Verb::kMove) {
-    DEBUG_CHECK(!points_.empty());
-    points_.back() = {x, y, 0, 1};
+template <typename P>
+P ReadPoint(const Vec2* point, const Vec2* begin, const Vec2* zw) {
+  if constexpr (std::is_same_v<P, Vec2>) {
+    return *point;
   } else {
-    last_move_to_index_ = CountPoints();
-    verbs_.emplace_back(Verb::kMove);
-    points_.emplace_back(Point{x, y, 0, 1});
-    type_ = IsAType::kGeneral;
+    return {*point, zw ? zw[point - begin] : Vec2{0, 1}};
   }
-  MarkBoundsDirty();
+}
+
+template <typename P>
+void CopySegment(P* out, const Vec2* point, int count, const Vec2* begin,
+                 const Vec2* zw) {
+  if constexpr (std::is_same_v<P, Vec2>) {
+    std::copy_n(point, count, out);
+  } else {
+    for (int i = 0; i < count; ++i) {
+      out[i] = ReadPoint<P>(point + i, begin, zw);
+    }
+  }
+}
+
+}  // namespace
+
+Path::Iter::Iter()
+    : pts_(nullptr),
+      points_begin_(nullptr),
+      zw_(nullptr),
+      verbs_(nullptr),
+      verb_stop_(nullptr),
+      conic_weights_(nullptr),
+      force_close_(false),
+      need_close_(false),
+      close_line_(false),
+      move_to_(nullptr),
+      last_pt_(nullptr),
+      segment_state_(SegmentState::kEmptyContour) {}
+
+Path::Iter::Iter(const Path& path, bool force_close) : Iter() {
+  SetPath(path, force_close);
+}
+
+void Path::Iter::SetPath(const Path& path, bool force_close) {
+  const auto& data = path.GetData();
+  pts_ = points_begin_ = data.points_.data();
+  zw_ = data.zw_.empty() ? nullptr : data.zw_.data();
+  verbs_ = data.verbs_.data();
+  verb_stop_ = path.VerbsEnd();
+  conic_weights_ = data.conic_weights_.data();
+  force_close_ = force_close;
+  need_close_ = close_line_ = false;
+  segment_state_ = SegmentState::kEmptyContour;
+}
+
+Path::Verb Path::Iter::Next(Vec2 pts[4]) { return NextImpl(pts); }
+Path::Verb Path::Iter::Next(Point pts[4]) { return NextImpl(pts); }
+
+template <typename P>
+Path::Verb Path::Iter::NextImpl(P pts[4]) {
+  if (verbs_ == verb_stop_) {
+    if (need_close_ && segment_state_ == SegmentState::kAfterPrimitive) {
+      if (AutoClose(pts) == Verb::kLine) {
+        return Verb::kLine;
+      }
+      need_close_ = false;
+      return Verb::kClose;
+    }
+    return Verb::kDone;
+  }
+
+  Verb verb = *verbs_++;
+  switch (verb) {
+    case Verb::kMove:
+      if (need_close_) {
+        --verbs_;
+        verb = AutoClose(pts);
+        if (verb == Verb::kClose) {
+          need_close_ = false;
+        }
+        return verb;
+      }
+      if (verbs_ == verb_stop_) {
+        return Verb::kDone;
+      }
+      move_to_ = last_pt_ = pts_++;
+      pts[0] = ReadPoint<P>(move_to_, points_begin_, zw_);
+      segment_state_ = SegmentState::kAfterMove;
+      need_close_ = force_close_;
+      break;
+    case Verb::kConic:
+      ++conic_weights_;
+      [[fallthrough]];
+    case Verb::kLine:
+    case Verb::kQuad:
+    case Verb::kCubic: {
+      int count = PointsInVerb(verb);
+      pts[0] = ReadPoint<P>(ConsMoveTo(), points_begin_, zw_);
+      CopySegment(pts + 1, pts_, count, points_begin_, zw_);
+      pts_ += count;
+      last_pt_ = pts_ - 1;
+      if (verb == Verb::kLine) {
+        close_line_ = false;
+      }
+      break;
+    }
+    case Verb::kClose:
+      verb = AutoClose(pts);
+      if (verb == Verb::kLine) {
+        --verbs_;
+      } else {
+        need_close_ = false;
+        segment_state_ = SegmentState::kEmptyContour;
+      }
+      last_pt_ = move_to_;
+      break;
+    case Verb::kDone:
+      break;
+  }
+  return verb;
+}
+
+float Path::Iter::ConicWeight() const { return conic_weights_[-1]; }
+
+bool Path::Iter::IsClosedContour() const {
+  if (verbs_ == verb_stop_) {
+    return false;
+  }
+  if (force_close_) {
+    return true;
+  }
+  auto verbs = verbs_;
+  if (*verbs == Verb::kMove) {
+    ++verbs;
+  }
+  while (verbs != verb_stop_ && *verbs != Verb::kMove) {
+    if (*verbs++ == Verb::kClose) {
+      return true;
+    }
+  }
+  return false;
+}
+
+template <typename P>
+Path::Verb Path::Iter::AutoClose(P* pts) {
+  if (*last_pt_ != *move_to_ ||
+      (zw_ && zw_[last_pt_ - points_begin_] != zw_[move_to_ - points_begin_])) {
+    if (FloatIsNan(last_pt_->x) || FloatIsNan(last_pt_->y) ||
+        FloatIsNan(move_to_->x) || FloatIsNan(move_to_->y)) {
+      return Verb::kClose;
+    }
+    pts[0] = ReadPoint<P>(last_pt_, points_begin_, zw_);
+    pts[1] = ReadPoint<P>(move_to_, points_begin_, zw_);
+    last_pt_ = move_to_;
+    close_line_ = true;
+    return Verb::kLine;
+  }
+  if constexpr (std::is_same_v<P, Point>) {
+    pts[0] = ReadPoint<P>(move_to_, points_begin_, zw_);
+  }
+  return Verb::kClose;
+}
+
+const Vec2* Path::Iter::ConsMoveTo() {
+  if (segment_state_ == SegmentState::kAfterMove) {
+    segment_state_ = SegmentState::kAfterPrimitive;
+    return move_to_;
+  }
+  return pts_ - 1;
+}
+
+bool Path::Iter::IsCloseLine() const { return close_line_; }
+
+Path::RawIter::RawIter()
+    : pts_(nullptr),
+      points_begin_(nullptr),
+      zw_(nullptr),
+      verbs_(nullptr),
+      verb_stop_(nullptr),
+      conic_weights_(nullptr) {}
+
+void Path::RawIter::SetPath(const Path& path) {
+  const auto& data = path.GetData();
+  pts_ = points_begin_ = data.points_.data();
+  zw_ = data.zw_.empty() ? nullptr : data.zw_.data();
+  verbs_ = data.verbs_.data();
+  verb_stop_ = path.IsFinite() ? path.VerbsEnd() : verbs_;
+  conic_weights_ = data.conic_weights_.data();
+}
+
+Path::Verb Path::RawIter::Next(Vec2 pts[4]) { return NextImpl(pts); }
+Path::Verb Path::RawIter::Next(Point pts[4]) { return NextImpl(pts); }
+
+template <typename P>
+Path::Verb Path::RawIter::NextImpl(P pts[4]) {
+  if (verbs_ == verb_stop_) {
+    return Verb::kDone;
+  }
+  const auto verb = *verbs_++;
+  const int count = PointsInVerb(verb);
+  if (count) {
+    const int back = verb == Verb::kMove ? 0 : 1;
+    CopySegment(pts, pts_ - back, count + back, points_begin_, zw_);
+    pts_ += count;
+  }
+  if (verb == Verb::kConic) {
+    ++conic_weights_;
+  }
+  return verb;
+}
+
+Path::Verb Path::RawIter::Peek() const {
+  return verbs_ != verb_stop_ ? *verbs_ : Verb::kDone;
+}
+
+float Path::RawIter::ConicWeight() const { return conic_weights_[-1]; }
+
+PathBuilder& PathBuilder::MoveTo(float x, float y) {
+  auto& data = Edit();
+  if (!data.verbs_.empty() && data.verbs_.back() == Verb::kMove) {
+    DEBUG_CHECK(!data.points_.empty());
+    data.SetPoint2D(data.points_.size() - 1, {x, y});
+  } else {
+    data.last_move_to_index_ = static_cast<int32_t>(data.points_.size());
+    data.verbs_.push_back(Verb::kMove);
+    data.AddPoint({x, y});
+    data.type_ = IsAType::kGeneral;
+  }
+  data.MarkBoundsDirty();
   return *this;
 }
 
-Path& Path::LineTo(float x, float y) {
+PathBuilder& PathBuilder::LineTo(float x, float y) {
   InjectMoveToIfNeed();
+  auto& data = *data_;
 
-  verbs_.emplace_back(Verb::kLine);
-  points_.emplace_back(Point{x, y, 0, 1});
-  segment_masks_ |= SegmentMask::kLine;
-  type_ = IsAType::kGeneral;
-  MarkBoundsDirty();
+  data.verbs_.push_back(Verb::kLine);
+  data.AddPoint({x, y});
+  data.segment_masks_ |= SegmentMask::kLine;
+  data.type_ = IsAType::kGeneral;
+  data.MarkBoundsDirty();
 
   return *this;
 }
 
-Path& Path::QuadTo(float x1, float y1, float x2, float y2) {
+PathBuilder& PathBuilder::QuadTo(float x1, float y1, float x2, float y2) {
   InjectMoveToIfNeed();
+  auto& data = *data_;
 
-  verbs_.emplace_back(Verb::kQuad);
-  points_.emplace_back(Point{x1, y1, 0, 1});
-  points_.emplace_back(Point{x2, y2, 0, 1});
-  segment_masks_ |= SegmentMask::kQuad;
-  type_ = IsAType::kGeneral;
-  MarkBoundsDirty();
+  data.verbs_.push_back(Verb::kQuad);
+  const Vec2 points[] = {{x1, y1}, {x2, y2}};
+  data.AddPoints(points);
+  data.segment_masks_ |= SegmentMask::kQuad;
+  data.type_ = IsAType::kGeneral;
+  data.MarkBoundsDirty();
 
   return *this;
 }
 
-Path& Path::ConicTo(float x1, float y1, float x2, float y2, float weight) {
+PathBuilder& PathBuilder::ConicTo(float x1, float y1, float x2, float y2,
+                                  float weight) {
   if (!(weight > 0)) {
     this->LineTo(x2, y2);
   } else if (glm::isinf(weight)) {
@@ -584,41 +469,43 @@ Path& Path::ConicTo(float x1, float y1, float x2, float y2, float weight) {
     this->QuadTo(x1, y1, x2, y2);
   } else {
     InjectMoveToIfNeed();
+    auto& data = *data_;
 
-    verbs_.emplace_back(Verb::kConic);
-    conic_weights_.emplace_back(weight);
-    points_.emplace_back(Point{x1, y1, 0, 1});
-    points_.emplace_back(Point{x2, y2, 0, 1});
-    segment_masks_ |= SegmentMask::kConic;
-    type_ = IsAType::kGeneral;
-    MarkBoundsDirty();
+    data.verbs_.push_back(Verb::kConic);
+    data.conic_weights_.push_back(weight);
+    const Vec2 points[] = {{x1, y1}, {x2, y2}};
+    data.AddPoints(points);
+    data.segment_masks_ |= SegmentMask::kConic;
+    data.type_ = IsAType::kGeneral;
+    data.MarkBoundsDirty();
   }
   return *this;
 }
 
-Path& Path::CubicTo(float x1, float y1, float x2, float y2, float x3,
-                    float y3) {
+PathBuilder& PathBuilder::CubicTo(float x1, float y1, float x2, float y2,
+                                  float x3, float y3) {
   InjectMoveToIfNeed();
+  auto& data = *data_;
 
-  verbs_.emplace_back(Verb::kCubic);
+  data.verbs_.push_back(Verb::kCubic);
 
-  points_.emplace_back(Point{x1, y1, 0, 1});
-  points_.emplace_back(Point{x2, y2, 0, 1});
-  points_.emplace_back(Point{x3, y3, 0, 1});
-  segment_masks_ |= SegmentMask::kCubic;
-  type_ = IsAType::kGeneral;
-  MarkBoundsDirty();
+  const Vec2 points[] = {{x1, y1}, {x2, y2}, {x3, y3}};
+  data.AddPoints(points);
+  data.segment_masks_ |= SegmentMask::kCubic;
+  data.type_ = IsAType::kGeneral;
+  data.MarkBoundsDirty();
 
   return *this;
 }
 
-Path& Path::ArcTo(float x1, float y1, float x2, float y2, float radius) {
+PathBuilder& PathBuilder::ArcTo(float x1, float y1, float x2, float y2,
+                                float radius) {
   if (radius == 0) {
     return LineTo(x1, y1);
   }
 
   Vec2 start;
-  GetLastPt2D(std::addressof(start));
+  GetLastPt(std::addressof(start));
   // need to know prev point so we can construct tangent vectors
   glm::dvec4 befored, afterd;
 
@@ -650,8 +537,8 @@ Path& Path::ArcTo(float x1, float y1, float x2, float y2, float radius) {
   return ConicTo(x1, y1, x1 + after.x, y1 + after.y, weight);
 }
 
-Path& Path::ArcTo(Rect const& oval, float startAngle, float sweepAngle,
-                  bool forceMove) {
+PathBuilder& PathBuilder::ArcTo(Rect const& oval, float startAngle,
+                                float sweepAngle, bool forceMove) {
   if (oval.Width() < 0 || oval.Height() < 0) {
     return *this;
   }
@@ -662,7 +549,8 @@ Path& Path::ArcTo(Rect const& oval, float startAngle, float sweepAngle,
 
   Point long_pt;
   if (arc_is_long_point(oval, startAngle, sweepAngle, &long_pt)) {
-    return forceMove ? this->MoveTo(long_pt) : this->LineTo(long_pt);
+    return forceMove ? this->MoveTo(Vec2{long_pt})
+                     : this->LineTo(Vec2{long_pt});
   }
 
   Vec2 startV, stopV;
@@ -677,11 +565,10 @@ Path& Path::ArcTo(Rect const& oval, float startAngle, float sweepAngle,
   auto addPt = [&forceMove, this](const Point& pt) {
     Vec2 lastPt;
     if (forceMove) {
-      this->MoveTo(pt);
-    } else if (!this->GetLastPt2D(&lastPt) ||
-               !FloatNearlyZero(lastPt.x - pt.x) ||
+      this->MoveTo(Vec2{pt});
+    } else if (!this->GetLastPt(&lastPt) || !FloatNearlyZero(lastPt.x - pt.x) ||
                !FloatNearlyZero(lastPt.y - pt.y)) {
-      this->LineTo(pt);
+      this->LineTo(Vec2{pt});
     }
   };
 
@@ -708,7 +595,8 @@ Path& Path::ArcTo(Rect const& oval, float startAngle, float sweepAngle,
     const Point& pt = conics[0].pts[0];
     addPt(pt);
     for (int i = 0; i < count; ++i) {
-      this->ConicTo(conics[i].pts[1], conics[i].pts[2], conics[i].w);
+      this->ConicTo(Vec2{conics[i].pts[1]}, Vec2{conics[i].pts[2]},
+                    conics[i].w);
     }
   } else {
     addPt(singlePt);
@@ -716,13 +604,14 @@ Path& Path::ArcTo(Rect const& oval, float startAngle, float sweepAngle,
   return *this;
 }
 
-Path& Path::ArcTo(float rx, float ry, float xAxisRotate, ArcSize largeArc,
-                  Direction sweep, float x, float y) {
+PathBuilder& PathBuilder::ArcTo(float rx, float ry, float xAxisRotate,
+                                ArcSize largeArc, Direction sweep, float x,
+                                float y) {
   // convert degree to angle
   xAxisRotate = glm::radians(xAxisRotate);
   this->InjectMoveToIfNeed();
   std::array<Point, 2> src_pts{};
-  this->GetLastPt(src_pts.data());
+  src_pts[0] = data_->Point4(data_->points_.size() - 1);
   // If rx = 0 or ry = 0 then this arc is treated as a straight line segment
   // joining the endpoints.
   // http://www.w3.org/TR/SVG/implnote.html#ArcOutOfRangeParameters
@@ -850,20 +739,18 @@ Path& Path::ArcTo(float rx, float ry, float xAxisRotate, ArcSize largeArc,
       }
     }
 
-    this->ConicTo(mapped[0], mapped[1], w);
+    this->ConicTo(Vec2{mapped[0]}, Vec2{mapped[1]}, w);
     start_theta = end_theta;
   }
 
   return *this;
 }
 
-Path& Path::AddRect(Rect const& rect, Direction dir, uint32_t start) {
-  this->SetFirstDirection(this->HasOnlyMoveTos() ? dir : Direction::kUnknown);
-
-  bool was_empty = HasOnlyMoveTos();
-
-  AutoDisableDirectionCheck addc{this};
-  AutoPathBoundsUpdate adbu(this, rect);
+PathBuilder& PathBuilder::AddRect(Rect const& rect, Direction dir,
+                                  uint32_t start) {
+  auto& data = Edit();
+  bool was_empty = data.segment_masks_ == 0;
+  data.first_direction_ = was_empty ? dir : Direction::kUnknown;
 
   Path_RectPointIterator iter{rect, dir, start};
 
@@ -873,37 +760,23 @@ Path& Path::AddRect(Rect const& rect, Direction dir, uint32_t start) {
   this->LineTo(iter.next());
   this->Close();
   if (was_empty) {
-    type_ = IsAType::kRect;
+    data.type_ = IsAType::kRect;
   }
 
   return *this;
 }
 
-Path& Path::Close() {
-  size_t count = CountVerbs();
-  if (count > 0) {
-    switch (verbs_.back()) {
-      case Verb::kLine:
-      case Verb::kQuad:
-      case Verb::kConic:
-      case Verb::kCubic:
-      case Verb::kMove:
-        verbs_.emplace_back(Verb::kClose);
-        break;
-      case Verb::kClose:
-        break;
-      default:
-        break;
-    }
+PathBuilder& PathBuilder::Close() {
+  if (!IsEmpty() && data_->verbs_.back() != Verb::kClose) {
+    data_->verbs_.push_back(Verb::kClose);
+    data_->last_move_to_index_ = ~data_->last_move_to_index_;
+    data_->MarkBoundsDirty();
   }
-
-  last_move_to_index_ ^=
-      ~last_move_to_index_ >> (8 * sizeof(last_move_to_index_) - 1);
-
   return *this;
 }
 
-Path& Path::AddRoundRect(Rect const& rect, float rx, float ry, Direction dir) {
+PathBuilder& PathBuilder::AddRoundRect(Rect const& rect, float rx, float ry,
+                                       Direction dir) {
   if (rx < 0 || ry < 0) {
     return *this;
   }
@@ -914,21 +787,13 @@ Path& Path::AddRoundRect(Rect const& rect, float rx, float ry, Direction dir) {
   return this->AddRRect(rrect, dir);
 }
 
-Path& Path::AddRoundRect(Rect const& rect, const float radii[], Direction dir) {
-  RRect rrect;
-  const Vec2 radii_[4] = {Vec2{radii[0], radii[1]}, Vec2{radii[2], radii[3]},
-                          Vec2{radii[4], radii[5]}, Vec2{radii[6], radii[7]}};
-  rrect.SetRectRadii(rect, radii_);
-
-  return this->AddRRect(rrect, dir);
-}
-
-Path& Path::AddRRect(RRect const& rrect, Direction dir) {
+PathBuilder& PathBuilder::AddRRect(RRect const& rrect, Direction dir) {
   // legacy start indices: 6 (CW) and 7(CCW)
   return this->AddRRect(rrect, dir, dir == Direction::kCW ? 6 : 7);
 }
 
-Path& Path::AddRRect(RRect const& rrect, Direction dir, uint32_t start_index) {
+PathBuilder& PathBuilder::AddRRect(RRect const& rrect, Direction dir,
+                                   uint32_t start_index) {
   Rect const& bounds = rrect.GetBounds();
 
   if (rrect.IsRect() || rrect.IsEmpty()) {
@@ -938,12 +803,9 @@ Path& Path::AddRRect(RRect const& rrect, Direction dir, uint32_t start_index) {
     // degenerate(oval) => line points are collapsing
     this->AddOval(bounds, dir, start_index / 2);
   } else {
-    this->SetFirstDirection(this->HasOnlyMoveTos() ? dir : Direction::kUnknown);
-
-    bool was_empty = HasOnlyMoveTos();
-
-    AutoPathBoundsUpdate apbu{this, bounds};
-    AutoDisableDirectionCheck addc{this};
+    auto& data = Edit();
+    bool was_empty = data.segment_masks_ == 0;
+    data.first_direction_ = was_empty ? dir : Direction::kUnknown;
 
     // we start with a conic on odd indices when moving CW vs.
     // even indices when moving CCW
@@ -975,84 +837,16 @@ Path& Path::AddRRect(RRect const& rrect, Direction dir, uint32_t start_index) {
     this->Close();
 
     if (was_empty && rrect.IsSimple()) {
-      type_ = IsAType::kSimpleRRect;
-      radii_ = rrect.GetSimpleRadii();
+      data.type_ = IsAType::kSimpleRRect;
+      data.radii_ = rrect.GetSimpleRadii();
     }
   }
 
   return *this;
 }
 
-Path& Path::Reset() {
-  points_.clear();
-  verbs_.clear();
-  conic_weights_.clear();
-  last_move_to_index_ = ~0;
-  convexity_ = ConvexityType::kUnknown;
-  first_direction_ = Direction::kCCW;
-  is_finite_ = true;
-  bounds_ = Rect{};
-  fill_type_ = PathFillType::kWinding;
-  segment_masks_ = 0;
-  type_ = IsAType::kGeneral;
-  radii_ = Vec2{0.f, 0.f};
-  MarkBoundsDirty();
-  return *this;
-}
-
-Path& Path::ReverseAddPath(const Path& src) {
-  auto verbs_begin = src.verbs_.data();
-  auto verbs = verbs_begin + src.verbs_.size();
-  auto pts = src.points_.data() + src.CountPoints();
-  auto conic_weights = src.conic_weights_.data() + src.conic_weights_.size();
-
-  bool need_move = true;
-  bool need_close = false;
-  while (verbs > verbs_begin) {
-    auto v = *--verbs;
-    int n = _pts_in_verb(v);
-
-    if (need_move) {
-      --pts;
-      MoveTo(pts->x, pts->y);
-      need_move = false;
-    }
-
-    pts -= n;
-
-    switch (v) {
-      case Verb::kMove:
-        if (need_close) {
-          Close();
-          need_close = false;
-        }
-        need_move = true;
-        pts += 1;
-        break;
-      case Verb::kLine:
-        LineTo(pts->x, pts->y);
-        break;
-      case Verb::kQuad:
-        QuadTo(pts[1].x, pts[1].y, pts[0].x, pts[0].y);
-        break;
-      case Verb::kConic:
-        ConicTo(pts[1], pts[0], *--conic_weights);
-        break;
-      case Verb::kCubic:
-        CubicTo(pts[2].x, pts[2].y, pts[1].x, pts[1].y, pts[0].x, pts[0].y);
-        break;
-      case Verb::kClose:
-        need_close = true;
-        break;
-      default:
-        break;
-    }
-  }
-
-  return *this;
-}
-
-Path& Path::AddCircle(float x, float y, float radius, Direction dir) {
+PathBuilder& PathBuilder::AddCircle(float x, float y, float radius,
+                                    Direction dir) {
   if (radius > 0) {
     AddOval(Rect::MakeLTRB(x - radius, y - radius, x + radius, y + radius),
             dir);
@@ -1061,20 +855,15 @@ Path& Path::AddCircle(float x, float y, float radius, Direction dir) {
   return *this;
 }
 
-Path& Path::AddOval(const Rect& oval, Direction dir) {
+PathBuilder& PathBuilder::AddOval(const Rect& oval, Direction dir) {
   return AddOval(oval, dir, 1);
 }
 
-Path& Path::AddOval(const Rect& oval, Direction dir, uint32_t start) {
-  bool is_oval = HasOnlyMoveTos();
-  if (is_oval) {
-    first_direction_ = dir;
-  } else {
-    first_direction_ = Direction::kUnknown;
-  }
-
-  AutoDisableDirectionCheck addc{this};
-  AutoPathBoundsUpdate apbu{this, oval};
+PathBuilder& PathBuilder::AddOval(const Rect& oval, Direction dir,
+                                  uint32_t start) {
+  auto& data = Edit();
+  bool is_oval = data.segment_masks_ == 0;
+  data.first_direction_ = is_oval ? dir : Direction::kUnknown;
 
   Path_OvalPointIterator oval_iter{oval, dir, start};
   Path_RectPointIterator rect_iter{oval, dir,
@@ -1088,278 +877,318 @@ Path& Path::AddOval(const Rect& oval, Direction dir, uint32_t start) {
   }
   Close();
   if (is_oval) {
-    type_ = IsAType::kOval;
+    data.type_ = IsAType::kOval;
   }
   return *this;
 }
 
-Path& Path::ReversePathTo(const Path& src) {
-  if (src.verbs_.empty()) {
-    return *this;
-  }
+Path::Path(StorageRef data, PathFillType fill_type,
+           ConvexityType convexity_hint)
+    : data_(std::move(data)),
+      fill_type_(fill_type),
+      convexity_hint_(convexity_hint) {}
 
-  auto verbs = src.verbs_.data() + src.verbs_.size();
-  auto verbs_begin = src.verbs_.data();
-  const Point* pts = src.points_.data() + src.points_.size() - 1;
-  const float* conic_weights =
-      src.conic_weights_.data() + src.conic_weights_.size();
-
-  while (verbs > verbs_begin) {
-    auto v = *--verbs;
-    pts -= _pts_in_verb(v);
-    switch (v) {
-      case Verb::kMove:
-        // if the path has multiple contours, stop after reversing the last
-        return *this;
-      case Verb::kLine:
-        LineTo(pts[0].x, pts[0].y);
-        break;
-      case Verb::kQuad:
-        QuadTo(pts[1].x, pts[1].y, pts[0].x, pts[0].y);
-        break;
-      case Verb::kConic:
-        ConicTo(pts[1].x, pts[1].y, pts[0].x, pts[0].y, *--conic_weights);
-        break;
-      case Verb::kCubic:
-        CubicTo(pts[2].x, pts[2].y, pts[1].x, pts[1].y, pts[0].x, pts[0].y);
-        break;
-      case Verb::kClose:
-      case Verb::kDone:
-      default:
-        break;
-    }
-  }
-
-  return *this;
+const Path::Data& Path::GetData() const {
+  static const Data empty;
+  return data_ ? *data_ : empty;
 }
 
-bool Path::GetLastPt(Point* lastPt) const {
-  size_t count = CountPoints();
-  if (count > 0) {
-    if (lastPt) {
-      *lastPt = points_.back();
-    }
-    return true;
-  }
+size_t Path::CountPoints() const { return GetData().points_.size(); }
+size_t Path::CountVerbs() const { return GetData().verbs_.size(); }
+size_t Path::CountConicWeights() const {
+  return GetData().conic_weights_.size();
+}
+const Vec2* Path::Points() const { return GetData().points_.data(); }
+const Path::Verb* Path::VerbsBegin() const { return GetData().verbs_.data(); }
+const Path::Verb* Path::VerbsEnd() const {
+  return data_ ? data_->verbs_.data() + data_->verbs_.size() : VerbsBegin();
+}
+const float* Path::ConicWeights() const {
+  return GetData().conic_weights_.data();
+}
+Rect Path::GetBounds() const { return GetData().GetBounds().rect; }
+bool Path::IsFinite() const { return GetData().GetBounds().finite; }
+Path::IsAType Path::GetIsAType() const { return GetData().type_; }
+uint32_t Path::GetSegmentMasks() const { return GetData().segment_masks_; }
 
-  if (lastPt) {
-    *lastPt = {0, 0, 0, 1};
+Path Path::WithFillType(PathFillType type) const {
+  return Path(data_, type, convexity_hint_);
+}
+
+Path::ConvexityType Path::GetConvexityType() const {
+  if (convexity_hint_ != ConvexityType::kUnknown) {
+    return convexity_hint_;
   }
-  return false;
+  const auto& data = GetData();
+  auto cached = data.convexity_cache_.load(std::memory_order_relaxed);
+  if (!cached) {
+    Direction direction = data.first_direction_;
+    ConvexityType type = ComputeConvexity(&direction);
+    cached =
+        static_cast<uint8_t>(type) | (static_cast<uint8_t>(direction) << 2);
+    data.convexity_cache_.store(cached, std::memory_order_relaxed);
+  }
+  return static_cast<ConvexityType>(cached & 3);
+}
+
+Path::Direction Path::GetFirstDirection() const {
+  const auto& data = GetData();
+  auto cached = data.convexity_cache_.load(std::memory_order_relaxed);
+  return cached && convexity_hint_ == ConvexityType::kUnknown
+             ? static_cast<Direction>(cached >> 2)
+             : data.first_direction_;
 }
 
 Point Path::GetPoint(int index) const {
-  if (index < static_cast<int32_t>(CountPoints())) {
-    return points_[index];
+  return index >= 0 && static_cast<size_t>(index) < CountPoints()
+             ? data_->Point4(index)
+             : Point{0, 0, 0, 1};
+}
+
+bool Path::GetLastPt(Point* last_pt) const {
+  const size_t count = CountPoints();
+  if (last_pt) {
+    *last_pt = count ? data_->Point4(count - 1) : Point{0, 0, 0, 1};
   }
-  return Point{0, 0, 0, 1};
+  return count != 0;
 }
 
 Path::Verb Path::GetVerb(int index) const {
-  if (index < static_cast<int32_t>(CountVerbs())) {
-    return verbs_[index];
-  }
-  return Path::Verb::kDone;
+  return index >= 0 && static_cast<size_t>(index) < CountVerbs()
+             ? data_->verbs_[index]
+             : Verb::kDone;
 }
 
 Point Path::GetLastMovePt() const {
-  if (last_move_to_index_ < 0) {
-    return GetPoint(~last_move_to_index_);
-  } else {
-    return GetPoint(last_move_to_index_);
-  }
+  const int32_t index = GetData().last_move_to_index_;
+  return GetPoint(index < 0 ? ~index : index);
 }
 
 Vec2 Path::GetPoint2D(int index) const {
-  if (index < 0 || static_cast<size_t>(index) >= CountPoints()) {
-    return {};
-  }
-  return Vec2{points_[index]};
+  return index >= 0 && static_cast<size_t>(index) < CountPoints()
+             ? data_->points_[index]
+             : Vec2{};
 }
 
 bool Path::GetLastPt2D(Vec2* last_pt) const {
+  const bool has_point = !IsEmpty();
   if (last_pt) {
-    *last_pt = CountPoints() == 0 ? Vec2{} : Vec2{points_.back()};
+    *last_pt = has_point ? data_->points_.back() : Vec2{};
   }
-  return CountPoints() != 0;
+  return has_point;
 }
 
 Vec2 Path::GetLastMovePt2D() const {
-  return GetPoint2D(last_move_to_index_ < 0 ? ~last_move_to_index_
-                                            : last_move_to_index_);
+  const int32_t index = GetData().last_move_to_index_;
+  return GetPoint2D(index < 0 ? ~index : index);
 }
 
 size_t Path::CopyPoints2D(Vec2* dst, size_t capacity) const {
   if (!dst) {
     return CountPoints();
   }
-  size_t count = std::min(capacity, CountPoints());
-  for (size_t i = 0; i < count; ++i) {
-    dst[i] = Vec2{points_[i]};
+  const size_t count = std::min(capacity, CountPoints());
+  if (count) {
+    std::copy_n(data_->points_.data(), count, dst);
   }
   return count;
 }
 
-bool Path::IsFinite() const {
-  if (bounds_dirty_) {
-    ComputeBounds();
-    bounds_dirty_ = false;
-  }
-  return is_finite_;
-}
-
 bool Path::IsLine(Point* line) const {
-  int verb_count = this->CountVerbs();
-
-  if (2 == verb_count) {
-    assert(verbs_.front() == Verb::kMove);
-    if (verbs_[1] == Verb::kLine) {
-      assert(2 == this->CountPoints());
-      if (line) {
-        const Point* pts = Points();
-        line[0] = pts[0];
-        line[1] = pts[1];
-      }
-    }
-  }
-
-  return false;
-}
-
-bool Path::IsLine2D(Vec2* line) const {
-  if (CountVerbs() != 2 || verbs_[0] != Verb::kMove ||
-      verbs_[1] != Verb::kLine) {
+  if (!IsLine2D(nullptr)) {
     return false;
   }
   if (line) {
-    line[0] = Vec2{points_[0]};
-    line[1] = Vec2{points_[1]};
+    line[0] = data_->Point4(0);
+    line[1] = data_->Point4(1);
+  }
+  return true;
+}
+
+bool Path::IsLine2D(Vec2* line) const {
+  if (CountVerbs() != 2 || data_->verbs_[0] != Verb::kMove ||
+      data_->verbs_[1] != Verb::kLine) {
+    return false;
+  }
+  if (line) {
+    std::copy_n(data_->points_.data(), 2, line);
   }
   return true;
 }
 
 bool Path::operator==(const Path& other) const {
-  // Content equality (verbs / points / conic weights / fill type), like
-  // SkPath::operator==. Lazily-computed caches (convexity_, is_finite_) are
-  // deliberately not compared: two identical paths can disagree on whether
-  // a cache has been computed yet.
-  return (this == std::addressof(other)) ||
-         (last_move_to_index_ == other.last_move_to_index_ &&
-          fill_type_ == other.fill_type_ &&
-          points_.size() == other.points_.size() &&
-          verbs_.size() == other.verbs_.size() &&
-          conic_weights_.size() == other.conic_weights_.size() &&
-          std::equal(verbs_.begin(), verbs_.end(), other.verbs_.begin()) &&
-          std::equal(points_.begin(), points_.end(), other.points_.begin()) &&
-          std::equal(conic_weights_.begin(), conic_weights_.end(),
-                     other.conic_weights_.begin()));
+  if (fill_type_ != other.fill_type_) {
+    return false;
+  }
+  if (data_ == other.data_) {
+    return true;
+  }
+  const auto& a = GetData();
+  const auto& b = other.GetData();
+  return a.last_move_to_index_ == b.last_move_to_index_ &&
+         a.verbs_ == b.verbs_ && a.points_ == b.points_ &&
+         a.conic_weights_ == b.conic_weights_ && a.zw_ == b.zw_;
 }
 
-void Path::Swap(Path& that) {
-  if (this != &that) {
-    std::swap(last_move_to_index_, that.last_move_to_index_);
-    std::swap(convexity_, that.convexity_);
-    std::swap(first_direction_, that.first_direction_);
-    std::swap(fill_type_, that.fill_type_);
-    std::swap(points_, that.points_);
-    std::swap(verbs_, that.verbs_);
-    std::swap(conic_weights_, that.conic_weights_);
-    std::swap(is_finite_, that.is_finite_);
-    std::swap(segment_masks_, that.segment_masks_);
-    std::swap(bounds_, that.bounds_);
-    std::swap(bounds_dirty_, that.bounds_dirty_);
-    std::swap(type_, that.type_);
-    std::swap(radii_, that.radii_);
+void PathBuilder::ReverseAddPath(const Path& src) {
+  const auto& data = src.GetData();
+  size_t point = data.points_.size();
+  size_t weight = data.conic_weights_.size();
+  bool need_move = true;
+  bool need_close = false;
+  for (size_t i = data.verbs_.size(); i > 0; --i) {
+    auto verb = data.verbs_[i - 1];
+    if (need_move) {
+      MoveTo(data.points_[--point]);
+      need_move = false;
+    }
+    if (verb == Verb::kMove) {
+      if (need_close) {
+        Close();
+        need_close = false;
+      }
+      need_move = true;
+      continue;
+    }
+    point -= PointsInVerb(verb);
+    const auto* pts = data.points_.data() + point;
+    switch (verb) {
+      case Verb::kLine:
+        LineTo(pts[0]);
+        break;
+      case Verb::kQuad:
+        QuadTo(pts[1], pts[0]);
+        break;
+      case Verb::kConic:
+        ConicTo(pts[1], pts[0], data.conic_weights_[--weight]);
+        break;
+      case Verb::kCubic:
+        CubicTo(pts[2], pts[1], pts[0]);
+        break;
+      case Verb::kClose:
+        need_close = true;
+        break;
+      default:
+        break;
+    }
   }
 }
 
-Path& Path::AddPath(const Path& src, float dx, float dy, AddMode mode) {
-  Matrix matrix = Matrix::Translate(dx, dy);
-  return AddPath(src, matrix, mode);
+void PathBuilder::ReversePathTo(const PathBuilder& src) {
+  if (src.IsEmpty()) {
+    return;
+  }
+  const auto& data = *src.data_;
+  size_t point = data.points_.size() - 1;
+  size_t weight = data.conic_weights_.size();
+  for (size_t i = data.verbs_.size(); i > 0; --i) {
+    auto verb = data.verbs_[i - 1];
+    if (verb == Verb::kMove) {
+      return;
+    }
+    point -= PointsInVerb(verb);
+    const auto* pts = data.points_.data() + point;
+    switch (verb) {
+      case Verb::kLine:
+        LineTo(pts[0]);
+        break;
+      case Verb::kQuad:
+        QuadTo(pts[1], pts[0]);
+        break;
+      case Verb::kConic:
+        ConicTo(pts[1], pts[0], data.conic_weights_[--weight]);
+        break;
+      case Verb::kCubic:
+        CubicTo(pts[2], pts[1], pts[0]);
+        break;
+      default:
+        break;
+    }
+  }
 }
 
-Path& Path::AddPath(const Path& src, AddMode mode) {
-  return AddPath(src, Matrix(1.f), mode);
+PathBuilder& PathBuilder::AddPath(const Path& src, float dx, float dy,
+                                  AddMode mode) {
+  return AddPath(src, Matrix::Translate(dx, dy), mode);
 }
 
-Path& Path::AddPath(const Path& src, const Matrix& matrix, AddMode mode) {
+PathBuilder& PathBuilder::AddPath(const Path& src, AddMode mode) {
+  return AddPath(src, Matrix{}, mode);
+}
+
+PathBuilder& PathBuilder::AddPath(const Path& src, const Matrix& matrix,
+                                  AddMode mode) {
   if (src.IsEmpty()) {
     return *this;
   }
 
   if (mode == AddMode::kAppend) {
-    if (src.last_move_to_index_ >= 0) {
-      last_move_to_index_ =
-          src.last_move_to_index_ + static_cast<int32_t>(CountPoints());
-    } else {
-      last_move_to_index_ =
-          src.last_move_to_index_ - static_cast<int32_t>(CountPoints());
-    }
+    auto& data = Edit();
+    const auto& source = src.GetData();
+    const size_t offset = data.points_.size();
+    const auto last_move = source.last_move_to_index_;
+    data.last_move_to_index_ = last_move >= 0
+                                   ? last_move + static_cast<int32_t>(offset)
+                                   : last_move - static_cast<int32_t>(offset);
 
-    // add verb
-    verbs_.insert(verbs_.end(), src.verbs_.begin(), src.verbs_.end());
-    segment_masks_ |= src.segment_masks_;
-    // add weights
-    conic_weights_.insert(conic_weights_.end(), src.conic_weights_.begin(),
-                          src.conic_weights_.end());
-    // add points
-    //    points_.insert(points_.end(), src.points_.begin(), src.points_.end());
-    if (points_.capacity() < points_.size() + src.points_.size()) {
-      points_.reserve((points_.capacity() + src.points_.capacity()));
+    data.verbs_.Append(source.verbs_);
+    data.conic_weights_.Append(source.conic_weights_);
+    data.points_.Append(source.points_);
+    if (!data.zw_.empty()) {
+      data.zw_.resize(data.points_.size(), Path::Data::kDefaultZW);
     }
-
-    for (const auto& p : src.points_) {
-      points_.emplace_back(matrix * p);
+    if (!matrix.IsIdentity() || !src.IsFinite()) {
+      for (size_t i = 0; i < source.points_.size(); ++i) {
+        data.SetPoint(offset + i, matrix * source.Point4(i));
+      }
+    } else if (!source.zw_.empty()) {
+      if (data.zw_.empty()) {
+        data.zw_.resize(data.points_.size(), Path::Data::kDefaultZW);
+      }
+      std::copy(source.zw_.begin(), source.zw_.end(),
+                data.zw_.begin() + offset);
     }
-    MarkBoundsDirty();
-    type_ = IsAType::kGeneral;
-
+    data.segment_masks_ |= source.segment_masks_;
+    data.type_ = IsAType::kGeneral;
+    data.MarkBoundsDirty();
     return *this;
   }
 
-  RawIter iter{src};
+  Path::RawIter iter{src};
   Point pts[4];
   Verb verb;
   bool first_verb = true;
-
   while ((verb = iter.Next(pts)) != Verb::kDone) {
     switch (verb) {
       case Verb::kMove:
         pts[0] = matrix * pts[0];
         if (first_verb && !IsEmpty()) {
           InjectMoveToIfNeed();
-          Point last_pt;
-          if (!this->GetLastPt(&last_pt) || last_pt != pts[0]) {
-            LineTo(pts[0].x, pts[0].y);
+          if (data_->Point4(data_->points_.size() - 1) != pts[0]) {
+            LineTo(Vec2{pts[0]});
           }
         } else {
-          MoveTo(pts[0].x, pts[0].y);
+          MoveTo(Vec2{pts[0]});
         }
         break;
       case Verb::kLine:
-        pts[1] = matrix * pts[1];
-        LineTo(pts[1].x, pts[1].y);
+        LineTo(Vec2{matrix * pts[1]});
         break;
       case Verb::kQuad:
-        pts[1] = matrix * pts[1];
-        pts[2] = matrix * pts[2];
-        QuadTo(pts[1].x, pts[1].y, pts[2].x, pts[2].y);
+        QuadTo(Vec2{matrix * pts[1]}, Vec2{matrix * pts[2]});
         break;
       case Verb::kConic:
-        pts[1] = matrix * pts[1];
-        pts[2] = matrix * pts[2];
-        ConicTo(pts[1].x, pts[1].y, pts[2].x, pts[2].y, iter.ConicWeight());
+        ConicTo(Vec2{matrix * pts[1]}, Vec2{matrix * pts[2]},
+                iter.ConicWeight());
         break;
       case Verb::kCubic:
-        pts[1] = matrix * pts[1];
-        pts[2] = matrix * pts[2];
-        pts[3] = matrix * pts[3];
-        CubicTo(pts[1].x, pts[1].y, pts[2].x, pts[2].y, pts[3].x, pts[3].y);
+        CubicTo(Vec2{matrix * pts[1]}, Vec2{matrix * pts[2]},
+                Vec2{matrix * pts[3]});
         break;
       case Verb::kClose:
         Close();
         break;
-      default:
+      case Verb::kDone:
         break;
     }
     first_verb = false;
@@ -1367,119 +1196,124 @@ Path& Path::AddPath(const Path& src, const Matrix& matrix, AddMode mode) {
   return *this;
 }
 
-void Path::SetLastPt(float x, float y) {
-  if (CountPoints() == 0) {
-    MoveTo(x, y);
-  } else {
-    PointSet(points_.back(), x, y);
-    MarkBoundsDirty();
-    type_ = IsAType::kGeneral;
+PathBuilder& PathBuilder::SetLastPt(float x, float y) {
+  if (IsEmpty()) {
+    return MoveTo(x, y);
   }
+  data_->SetPoint2D(data_->points_.size() - 1, {x, y});
+  data_->MarkBoundsDirty();
+  data_->type_ = IsAType::kGeneral;
+  return *this;
 }
 
 Path Path::CopyWithMatrix(const Matrix& matrix) const {
-  Path ret;
-
-  ret.last_move_to_index_ = last_move_to_index_;
-  ret.convexity_ = convexity_;
-  ret.first_direction_ = first_direction_;
-  ret.fill_type_ = fill_type_;
-
-  ret.points_.reserve(this->points_.capacity());
-  for (const auto& p : this->points_) {
-    ret.points_.emplace_back(matrix * p);
-  }
-
-  ret.conic_weights_ = conic_weights_;
-  ret.verbs_ = verbs_;
-  ret.segment_masks_ = segment_masks_;
-
-  ret.is_finite_ = is_finite_;
-  ret.MarkBoundsDirty();
-  ret.type_ = IsAType::kGeneral;
-
-  return ret;
+  PathBuilder builder(*this);
+  builder.TransformPoints(matrix);
+  builder.convexity_hint_ = convexity_hint_;
+  return builder.Detach();
 }
 
 Path Path::CopyWithScale(float scale) const {
-  Path ret;
-
-  ret.last_move_to_index_ = last_move_to_index_;
-  ret.convexity_ = convexity_;
-  ret.first_direction_ = first_direction_;
-  ret.fill_type_ = fill_type_;
-
-  ret.points_.reserve(this->points_.capacity());
-  for (auto p : this->points_) {
-    p.x *= scale;
-    p.y *= scale;
-    ret.points_.emplace_back(p);
-  }
-
-  ret.conic_weights_.resize(conic_weights_.size());
-  std::memcpy(ret.conic_weights_.data(), conic_weights_.data(),
-              conic_weights_.size() * sizeof(float));
-  ret.verbs_.resize(verbs_.size());
-  std::memcpy(ret.verbs_.data(), verbs_.data(), verbs_.size() * sizeof(Verb));
-  ret.segment_masks_ = segment_masks_;
-
-  ret.is_finite_ = is_finite_;
-  ret.MarkBoundsDirty();
-  ret.type_ = IsAType::kGeneral;
-
-  return ret;
-}
-
-void Path::InjectMoveToIfNeed() {
-  if (last_move_to_index_ < 0) {
-    float x, y;
-    if (CountVerbs() == 0) {
-      x = y = 0;
-    } else {
-      Point const& pt = AtPoint(~last_move_to_index_);
-      x = pt.x;
-      y = pt.y;
+  PathBuilder builder(*this);
+  builder.convexity_hint_ = convexity_hint_;
+  if (builder.data_) {
+    for (auto& point : builder.data_->points_) {
+      point *= scale;
     }
-    MoveTo(x, y);
+    builder.data_->first_direction_ = GetFirstDirection();
+    builder.data_->type_ = IsAType::kGeneral;
+    builder.data_->MarkBoundsDirty();
+  }
+  return builder.Detach();
+}
+
+void PathBuilder::InjectMoveToIfNeed() {
+  if (!data_ || data_->last_move_to_index_ < 0) {
+    MoveTo(GetLastMovePt());
   }
 }
 
-void Path::ComputeBounds() const {
-  is_finite_ = ComputePtBounds(std::addressof(bounds_), *this);
-}
-
-bool Path::HasOnlyMoveTos() const { return segment_masks_ == 0; }
-
-bool Path::ComputePtBounds(Rect* bounds, const Path& ref) {
-  uint32_t point_count = ref.CountPoints();
-  if (ref.verbs_.size() > 1 && ref.verbs_.back() == Verb::kMove) {
-    // While trailing moves do not contribute to the bounds, we still reject
-    // them.
-    if (!PointIsFinite(ref.points_.back())) {
-      bounds->SetEmpty();
-      return false;
-    }
-    // Exclude the last move to point if it is not the first move to point
-    point_count--;
-  }
-  return bounds->SetBoundsCheck(ref.points_.data(), point_count);
-}
-
-bool Path::IsZeroLengthSincePoint(int startPtIndex) const {
-  int32_t count = CountPoints() - startPtIndex;
-  if (count < 2) {
+bool PathBuilder::IsZeroLengthSincePoint(int start_index) const {
+  if (!data_ || data_->points_.size() <= static_cast<size_t>(start_index) + 1) {
     return true;
   }
-
-  auto pts = points_.data() + startPtIndex;
-  Point const& first = *pts;
-
-  for (int32_t index = 1; index < count; index++) {
-    if (first != pts[index]) {
+  const auto point = data_->Point4(start_index);
+  for (size_t i = start_index + 1; i < data_->points_.size(); ++i) {
+    if (point != data_->Point4(i)) {
       return false;
     }
   }
   return true;
+}
+
+Path::Data::Bounds Path::Data::GetBounds() const {
+  if (bounds_state_.load(std::memory_order_acquire) == kReady) {
+    return bounds_;
+  }
+
+  // Compute outside the publication window so readers never wait for a scan.
+  const auto computed = ComputeBounds();
+  auto expected = kDirty;
+  if (bounds_state_.compare_exchange_strong(expected, kPublishing,
+                                            std::memory_order_relaxed)) {
+    bounds_ = computed;
+    bounds_state_.store(kReady, std::memory_order_release);
+  }
+  return computed;
+}
+
+bool PathPriv::IsPlanar(const Path& path) { return path.GetData().zw_.empty(); }
+
+bool PathPriv::IsPlanarTransform(const Matrix& matrix) {
+  return matrix[0].z == 0 && matrix[0].w == 0 && matrix[1].z == 0 &&
+         matrix[1].w == 0 && matrix[2] == Vec4{0, 0, 1, 0} &&
+         matrix[3].z == 0 && matrix[3].w == 1;
+}
+
+void PathPriv::TransformPoints2D(const Matrix& matrix, const Vec2* src,
+                                 Vec2* dst, size_t count) {
+  for (size_t i = 0; i < count; ++i) {
+    dst[i] = Vec2{matrix * Point{src[i], 0.f, 1.f}};
+  }
+}
+
+Rect PathPriv::ComputeBounds(const Vec2* points, size_t count, bool skip_last,
+                             bool* finite) {
+  *finite = true;
+  if (!count) {
+    return {};
+  }
+  const auto is_finite = [](Vec2 pt) {
+    return std::isfinite(pt.x) && std::isfinite(pt.y);
+  };
+  if (skip_last && !is_finite(points[--count])) {
+    *finite = false;
+    return {};
+  }
+  Vec2 min = points[0], max = min;
+  for (size_t i = 0; i < count; ++i) {
+    Vec2 point = points[i];
+    if (!is_finite(point)) {
+      *finite = false;
+      return {};
+    }
+    min = Vec2::Min(min, point);
+    max = Vec2::Max(max, point);
+  }
+  return {min.x, min.y, max.x, max.y};
+}
+
+Path::Data::Bounds Path::Data::ComputeBounds() const {
+  if (!std::all_of(zw_.begin(), zw_.end(), [](Vec2 zw) {
+        return std::isfinite(zw.x) && std::isfinite(zw.y);
+      })) {
+    return {Rect{}, false};
+  }
+  Bounds result;
+  result.rect = PathPriv::ComputeBounds(
+      points_.data(), points_.size(),
+      verbs_.size() > 1 && verbs_.back() == Verb::kMove, &result.finite);
+  return result;
 }
 
 static void append_params(std::ostream& os, const std::string& label,
@@ -1502,7 +1336,8 @@ static void append_params(std::ostream& os, const std::string& label,
 }
 
 bool Path::IsRect(Rect* rect, bool* is_closed, Direction* direction) const {
-  if (segment_masks_ != SegmentMask::kLine) {
+  const auto& data = GetData();
+  if (data.segment_masks_ != SegmentMask::kLine) {
     return false;
   }
 
@@ -1510,11 +1345,14 @@ bool Path::IsRect(Rect* rect, bool* is_closed, Direction* direction) const {
 
   int32_t corners = 0;
   int32_t curr_verb = 0;
-  const Point* first_pt = nullptr;
-  const Point* last_pt = nullptr;
+  const Vec2* first_pt = nullptr;
+  const Vec2* last_pt = nullptr;
   Point first_corner;
   Point third_corner;
-  const Point* pts = points_.data();
+  const Vec2* pts = data.points_.data();
+  const auto read = [&](const Vec2* point) {
+    return data.Point4(point - data.points_.data());
+  };
   Point line_start;
   Point close_xy;
 
@@ -1524,7 +1362,7 @@ bool Path::IsRect(Rect* rect, bool* is_closed, Direction* direction) const {
   std::array<int32_t, 5> directions{-1, -1, -1, -1, -1};
 
   while (curr_verb < verb_cnt && (!auto_close)) {
-    auto verb = verbs_[curr_verb];
+    auto verb = data.verbs_[curr_verb];
 
     switch (verb) {
       case Verb::kClose:
@@ -1534,7 +1372,7 @@ bool Path::IsRect(Rect* rect, bool* is_closed, Direction* direction) const {
         if (verb != Verb::kClose) {
           last_pt = pts;
         }
-        Point line_end = verb == Verb::kClose ? *first_pt : *pts++;
+        Point line_end = verb == Verb::kClose ? read(first_pt) : read(pts++);
         Vec2 line_delta = Vec2{line_end - line_start};
         if (!FloatNearlyZero(line_delta.x) && !FloatNearlyZero(line_delta.y)) {
           return false;  // not a straight line
@@ -1605,13 +1443,13 @@ bool Path::IsRect(Rect* rect, bool* is_closed, Direction* direction) const {
         if (!corners) {
           first_pt = pts;
         } else {
-          close_xy = *first_pt - *last_pt;
+          close_xy = read(first_pt) - read(last_pt);
           if (close_xy.x && close_xy.y) {
             return false;
           }
         }
 
-        line_start = *pts++;
+        line_start = read(pts++);
         closed_or_moved = true;
         break;
       default:
@@ -1627,7 +1465,7 @@ bool Path::IsRect(Rect* rect, bool* is_closed, Direction* direction) const {
   }
 
   // check if close generates diagonal
-  close_xy = *first_pt - *last_pt;
+  close_xy = read(first_pt) - read(last_pt);
   if (close_xy.x && close_xy.y) {
     return false;
   }
@@ -1649,11 +1487,12 @@ bool Path::IsRect(Rect* rect, bool* is_closed, Direction* direction) const {
 }
 
 bool Path::IsSimpleRRect(RRect* rrect) const {
-  if (type_ != IsAType::kSimpleRRect) {
+  const auto& data = GetData();
+  if (data.type_ != IsAType::kSimpleRRect) {
     return false;
   }
   if (rrect) {
-    rrect->SetRectXY(GetBounds(), radii_.x, radii_.y);
+    rrect->SetRectXY(GetBounds(), data.radii_.x, data.radii_.y);
   }
   return true;
 }
@@ -1700,7 +1539,7 @@ bool Path::Contains(float x, float y) const {
   return false;
 }
 
-void Path::Dump() {
+void Path::Dump() const {
   Iter iter{*this, false};
 
   Vec2 pts[4];
@@ -1738,9 +1577,10 @@ void Path::Dump() {
 }
 
 int Path::LeadingMoveToCount() const {
-  int count = verbs_.size();
+  const auto& verbs = GetData().verbs_;
+  int count = verbs.size();
   for (int i = 0; i < count; i++) {
-    if (verbs_[i] != Verb::kMove) {
+    if (verbs[i] != Verb::kMove) {
       return i;
     }
   }
@@ -1784,25 +1624,25 @@ struct Convexicator {
     return true;
   }
 
-  static Path::ConvexityType BySign(const Point points[], int count) {
+  static Path::ConvexityType BySign(const Vec2 points[], int count) {
     if (count <= 3) {
       // point, line, or triangle are always convex
       return Path::ConvexityType::kConvex;
     }
 
-    const Point* last = points + count;
-    Point currPt = *points++;
-    Point firstPt = currPt;
+    const Vec2* last = points + count;
+    Vec2 currPt = *points++;
+    Vec2 firstPt = currPt;
     int dxes = 0;
     int dyes = 0;
     int lastSx = kValueNeverReturnedBySign;
     int lastSy = kValueNeverReturnedBySign;
     for (int outerLoop = 0; outerLoop < 2; ++outerLoop) {
       while (points != last) {
-        Vec4 vec = *points - currPt;
-        if (!PointIsZero(vec)) {
+        Vec2 vec = *points - currPt;
+        if (vec != Vec2{}) {
           // give up if vector construction failed
-          if (!PointIsFinite(vec)) {
+          if (!std::isfinite(vec.x) || !std::isfinite(vec.y)) {
             return Path::ConvexityType::kUnknown;
           }
           int sx = sign(vec.x);
@@ -1897,43 +1737,25 @@ struct Convexicator {
   bool is_finite_{true};
 };
 
-constexpr static int PointsInVerb(Path::Verb verb) {
-  switch (verb) {
-    case Path::Verb::kMove:
-      return 1;
-    case Path::Verb::kLine:
-      return 1;
-    case Path::Verb::kQuad:
-      return 2;
-    case Path::Verb::kConic:
-      return 2;
-    case Path::Verb::kCubic:
-      return 3;
-    case Path::Verb::kClose:
-      return 0;
-    default:
-      break;
-  }
-  return 0;
-}
-
-Path::ConvexityType Path::ComputeConvexity() const {
-  int point_count = this->points_.size();
+Path::ConvexityType Path::ComputeConvexity(Direction* direction) const {
+  const auto& data = GetData();
+  int point_count = data.points_.size();
   int skip_count = LeadingMoveToCount() - 1;
 
-  if (last_move_to_index_ >= 0) {
-    if (last_move_to_index_ == static_cast<int32_t>(points_.size() - 1)) {
-      for (int i = verbs_.size() - 1; i >= 0; i--) {
-        if (verbs_[i] == Verb::kMove) {
+  if (data.last_move_to_index_ >= 0) {
+    if (data.last_move_to_index_ ==
+        static_cast<int32_t>(data.points_.size() - 1)) {
+      for (int i = data.verbs_.size() - 1; i >= 0; i--) {
+        if (data.verbs_[i] == Verb::kMove) {
           point_count--;
         }
       }
-    } else if (last_move_to_index_ != skip_count) {
+    } else if (data.last_move_to_index_ != skip_count) {
       return Path::ConvexityType::kConcave;
     }
   }
 
-  const Point* points = points_.data();
+  const Vec2* points = data.points_.data();
   if (skip_count > 0) {
     points += skip_count;
     point_count -= skip_count;
@@ -1992,7 +1814,7 @@ Path::ConvexityType Path::ComputeConvexity() const {
   if (needs_close && !state.Close()) {
     return Path::ConvexityType::kConcave;
   }
-  first_direction_ = state.GetFirstDirection();
+  *direction = state.GetFirstDirection();
   return Path::ConvexityType::kConvex;
 }
 

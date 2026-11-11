@@ -4,6 +4,8 @@
 
 #include "case/shape/shape_example.hpp"
 
+#include <skity/graphic/path_builder.hpp>
+
 namespace skity::example::shape {
 
 void draw_shapes(skity::Canvas* canvas) {
@@ -18,12 +20,13 @@ void draw_shapes(skity::Canvas* canvas) {
   canvas->Save();
   canvas->Translate(50, 50);
   paint.SetStrokeMiter(1.415);
-  skity::Path path;
-  path.MoveTo(0, 0);
-  path.LineTo(100, 0);
-  path.LineTo(100, 100);
-  path.LineTo(0, 100);
-  path.Close();
+  skity::PathBuilder builder;
+  builder.MoveTo(0, 0);
+  builder.LineTo(100, 0);
+  builder.LineTo(100, 100);
+  builder.LineTo(0, 100);
+  builder.Close();
+  skity::Path path = builder.Detach();
   canvas->DrawPath(path, paint);
 
   canvas->Translate(0, 200);
@@ -46,16 +49,18 @@ void draw_shapes(skity::Canvas* canvas) {
   canvas->DrawRect(Rect::MakeWH(0, 0), paint);
   canvas->Restore();
 
-  skity::Path curve;
-  curve.MoveTo(10, 10);
-  curve.QuadTo(256, 64, 128, 128);
-  curve.QuadTo(10, 192, 250, 250);
+  skity::PathBuilder curve_builder;
+  curve_builder.MoveTo(10, 10);
+  curve_builder.QuadTo(256, 64, 128, 128);
+  curve_builder.QuadTo(10, 192, 250, 250);
+  skity::Path curve = curve_builder.Detach();
 
-  skity::Path polyline;
-  polyline.MoveTo(10, 10);
-  polyline.LineTo(200, 140);
-  polyline.LineTo(50, 140);
-  polyline.LineTo(10, 10);
+  skity::PathBuilder polyline_builder;
+  polyline_builder.MoveTo(10, 10);
+  polyline_builder.LineTo(200, 140);
+  polyline_builder.LineTo(50, 140);
+  polyline_builder.LineTo(10, 10);
+  skity::Path polyline = polyline_builder.Detach();
 
   canvas->Save();
   canvas->Translate(400, 50);
@@ -88,17 +93,17 @@ void draw_shapes(skity::Canvas* canvas) {
   canvas->Translate(0, 400);
   paint.Reset();
   paint.SetColor(0x8000ff00);
-  path.Reset();
-  path.MoveTo(0, 0);
-  path.LineTo(100, 0);
-  path.LineTo(100, 50);
-  path.LineTo(0, 50);
-  path.Close();
-  path.MoveTo(10, 10);
-  path.LineTo(90, 10);
-  path.LineTo(90, 40);
-  path.LineTo(10, 40);
-  path.Close();
+  builder.MoveTo(0, 0);
+  builder.LineTo(100, 0);
+  builder.LineTo(100, 50);
+  builder.LineTo(0, 50);
+  builder.Close();
+  builder.MoveTo(10, 10);
+  builder.LineTo(90, 10);
+  builder.LineTo(90, 40);
+  builder.LineTo(10, 40);
+  builder.Close();
+  path = builder.Detach();
   canvas->DrawPath(path, paint);
   canvas->Restore();
 }

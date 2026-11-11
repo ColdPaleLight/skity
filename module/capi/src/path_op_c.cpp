@@ -7,13 +7,12 @@
 #include <skity/graphic/path.hpp>
 #include <skity/graphic/path_op.hpp>
 
-#include "handle.hpp"
+#include "path_handle.hpp"
 
 namespace {
 
-skity::Path* path_of(skity_path handle) {
-  auto* w = skity::capi::resolve<skity_path_s>(handle, SKITY_OBJECT_TYPE_PATH);
-  return w ? static_cast<skity::Path*>(w->impl.get()) : nullptr;
+const skity::Path* path_of(skity_path handle) {
+  return skity::capi::read_path_handle(handle);
 }
 
 }  // namespace
@@ -24,7 +23,7 @@ uint32_t skity_path_op_execute(skity_path one, skity_path two, skity_path_op op,
                                skity_path result) {
   auto* a = path_of(one);
   auto* b = path_of(two);
-  auto* r = path_of(result);
+  auto* r = skity::capi::writable_path(skity::capi::resolve_path(result));
   if (a == nullptr || b == nullptr || r == nullptr) {
     return 0u;
   }

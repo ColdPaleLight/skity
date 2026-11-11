@@ -4,6 +4,8 @@
 
 #include "src/graphic/pathop/path_op_engine.hpp"
 
+#include <skity/graphic/path_builder.hpp>
+
 #include "src/graphic/path_visitor.hpp"
 #include "src/graphic/pathop/clipper2/core.h"
 #include "src/graphic/pathop/clipper2/engine.h"
@@ -176,7 +178,7 @@ bool PathOpEngine::ExecuteInternal(Path const &one, Path const &two,
 }
 
 Path ConvertClipper2Path(const Clipper2Lib::PathsD &paths) {
-  Path result;
+  PathBuilder result;
 
   for (auto const &path : paths) {
     result.MoveTo(path[0].x, path[0].y);
@@ -192,7 +194,7 @@ Path ConvertClipper2Path(const Clipper2Lib::PathsD &paths) {
     result.Close();
   }
 
-  return result;
+  return result.Detach();
 }
 
 Clipper2Lib::PathsD ConvertPath(const Path &path) {

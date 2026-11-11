@@ -4,6 +4,7 @@
 
 #include <skity/effect/path_effect.hpp>
 #include <skity/graphic/path.hpp>
+#include <skity/graphic/path_builder.hpp>
 
 #include "src/effect/dash_path_effect.hpp"
 #include "src/effect/discrete_path_effect.hpp"
@@ -12,21 +13,16 @@ namespace skity {
 
 bool PathEffect::FilterPath(Path* dst, Path const& src, bool stroke,
                             Paint const& paint) const {
-  Path tmp, *tmp_dst = dst;
-
-  if (dst == &src) {
-    tmp_dst = &tmp;
+  if (!dst) {
+    return false;
   }
-
-  if (this->OnFilterPath(tmp_dst, src, stroke, paint)) {
-    if (dst == &src) {
-      *dst = tmp;
-    }
-
-    return true;
+  const bool in_place = dst == &src;
+  PathBuilder builder(in_place ? Path{} : std::move(*dst));
+  bool success = OnFilterPath(&builder, src, stroke, paint);
+  if (success || !in_place) {
+    builder.DetachTo(dst);
   }
-
-  return false;
+  return success;
 }
 
 PathEffect::DashType PathEffect::AsADash(DashInfo* info) const {

@@ -4,6 +4,8 @@
 
 #include "src/render/hw/layer/hw_sub_layer.hpp"
 
+#include <skity/graphic/path_builder.hpp>
+
 #include "src/gpu/gpu_context_impl.hpp"
 #include "src/logging.hpp"
 #include "src/render/hw/draw/fragment/wgsl_texture_fragment.hpp"
@@ -35,8 +37,8 @@ HWDrawState HWSubLayer::OnPrepare(HWDrawContext* context) {
   {
     auto texture_bounds = GetLayerBackDrawBounds();
     auto draw_bounds = texture_bounds;
-    Path path;
-    path.AddRect(draw_bounds);
+    PathBuilder builder;
+    Path path = builder.AddRect(draw_bounds).Detach();
 
     Paint paint;
     paint.SetBlendMode(GetBlendPlan().blend_mode);

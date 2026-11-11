@@ -4,6 +4,7 @@
 
 #include <benchmark/benchmark.h>
 
+#include <skity/graphic/path_builder.hpp>
 #include <skity/skity.hpp>
 
 #include "case/basic/example.hpp"
@@ -50,11 +51,12 @@ BENCHMARK(BM_SWExampleUnpremulAlphaWithClip)->Unit(benchmark::kMicrosecond);
 static void BM_SWRasterBigTriangle(benchmark::State& state) {
   skity::Bitmap bitmap(1000, 800, skity::AlphaType::kUnpremul_AlphaType);
   auto canvas = skity::Canvas::MakeSoftwareCanvas(&bitmap);
-  skity::Path path;
-  path.MoveTo(500, 0);
-  path.LineTo(0, 800);
-  path.LineTo(1000, 800);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(500, 0);
+  path_builder.LineTo(0, 800);
+  path_builder.LineTo(1000, 800);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
 
   for (auto _ : state) {
     skity::SWRaster raster;
@@ -66,16 +68,16 @@ BENCHMARK(BM_SWRasterBigTriangle)->Unit(benchmark::kMicrosecond);
 static void BM_SWRasterStar(benchmark::State& state) {
   skity::Bitmap bitmap(1000, 800, skity::AlphaType::kUnpremul_AlphaType);
   auto canvas = skity::Canvas::MakeSoftwareCanvas(&bitmap);
-  skity::Path star1;
-  star1.MoveTo(100, 10);
-  star1.LineTo(40, 180);
-  star1.LineTo(190, 60);
-  star1.LineTo(10, 60);
-  star1.LineTo(160, 180);
-  star1.Close();
+  skity::PathBuilder star1_builder;
+  star1_builder.MoveTo(100, 10);
+  star1_builder.LineTo(40, 180);
+  star1_builder.LineTo(190, 60);
+  star1_builder.LineTo(10, 60);
+  star1_builder.LineTo(160, 180);
+  star1_builder.Close();
+  skity::Path star1 = star1_builder.Detach();
 
-  skity::Path star2 = star1;
-  star2.SetFillType(skity::Path::PathFillType::kEvenOdd);
+  skity::Path star2 = star1.WithFillType(skity::Path::PathFillType::kEvenOdd);
 
   for (auto _ : state) {
     skity::SWRaster raster1;

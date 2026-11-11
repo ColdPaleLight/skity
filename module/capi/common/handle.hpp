@@ -133,7 +133,11 @@ struct skity_surface_s : skity_handle_base<skity::GPUSurface> {
 };
 struct skity_canvas_s : skity_handle_base<skity::Canvas> {};
 struct skity_paint_s : skity_handle_base<skity::Paint> {};
-struct skity_path_s : skity_handle_base<skity::Path> {};
+struct skity_path_s : skity_handle_base<skity::Path> {
+  std::shared_ptr<skity::PathBuilder> editor;
+  bool editing = false;
+  bool private_view = false;
+};
 struct skity_path_builder_s : skity_handle_base<skity::PathBuilder> {};
 struct skity_shader_s : skity_handle_base<skity::Shader> {};
 struct skity_color_filter_s : skity_handle_base<skity::ColorFilter> {};

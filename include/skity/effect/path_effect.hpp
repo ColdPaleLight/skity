@@ -13,6 +13,7 @@
 namespace skity {
 
 class Path;
+class PathBuilder;
 class Paint;
 
 /**
@@ -87,7 +88,8 @@ class SKITY_API PathEffect : public Flattenable {
  protected:
   PathEffect() = default;
 
-  virtual bool OnFilterPath(Path*, Path const&, bool, Paint const&) const = 0;
+  virtual bool OnFilterPath(PathBuilder*, Path const&, bool,
+                            Paint const&) const = 0;
 
   virtual DashType OnAsADash(DashInfo*) const { return DashType::kNone; }
 };

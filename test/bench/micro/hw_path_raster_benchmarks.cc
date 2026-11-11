@@ -4,6 +4,7 @@
 
 #include <benchmark/benchmark.h>
 
+#include <skity/graphic/path_builder.hpp>
 #include <skity/skity.hpp>
 #include <sstream>
 
@@ -91,36 +92,41 @@ std::string GetStrokeLabel(PathIndex index, float stroke_width,
 static skity::Path GetPathByIndex(PathIndex index) {
   switch (index) {
     case PathIndex::kBigCircle: {
-      skity::Path path;
-      path.AddCircle(500, 500, 500);
+      skity::PathBuilder path_builder;
+      path_builder.AddCircle(500, 500, 500);
+      skity::Path path = path_builder.Detach();
       return path;
     }
     case PathIndex::kLines: {
-      skity::Path path;
-      path.MoveTo(0, 0);
-      path.LineTo(0, 1000);
-      path.LineTo(1000, 1000);
+      skity::PathBuilder path_builder;
+      path_builder.MoveTo(0, 0);
+      path_builder.LineTo(0, 1000);
+      path_builder.LineTo(1000, 1000);
+      skity::Path path = path_builder.Detach();
       return path;
     }
     case PathIndex::kBigQuad: {
-      skity::Path path;
-      path.MoveTo(0, 0);
-      path.QuadTo(0, 1000, 1000, 1000);
-      path.LineTo(0, 0);
+      skity::PathBuilder path_builder;
+      path_builder.MoveTo(0, 0);
+      path_builder.QuadTo(0, 1000, 1000, 1000);
+      path_builder.LineTo(0, 0);
+      skity::Path path = path_builder.Detach();
       return path;
     }
     case PathIndex::kBigConic: {
-      skity::Path path;
-      path.MoveTo(0, 0);
-      path.ConicTo(0, 1000, 1000, 1000, FloatRoot2Over2);
-      path.LineTo(0, 0);
+      skity::PathBuilder path_builder;
+      path_builder.MoveTo(0, 0);
+      path_builder.ConicTo(0, 1000, 1000, 1000, FloatRoot2Over2);
+      path_builder.LineTo(0, 0);
+      skity::Path path = path_builder.Detach();
       return path;
     }
     case PathIndex::kBigCubic: {
-      skity::Path path;
-      path.MoveTo(0, 500);
-      path.CubicTo(250, 0, 750, 1000, 1000, 500);
-      path.LineTo(0, 500);
+      skity::PathBuilder path_builder;
+      path_builder.MoveTo(0, 500);
+      path_builder.CubicTo(250, 0, 750, 1000, 1000, 500);
+      path_builder.LineTo(0, 500);
+      skity::Path path = path_builder.Detach();
       return path;
     }
   }

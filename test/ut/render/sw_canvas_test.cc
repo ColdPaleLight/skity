@@ -7,6 +7,7 @@
 #include <skity/graphic/bitmap.hpp>
 #include <skity/graphic/color.hpp>
 #include <skity/graphic/paint.hpp>
+#include <skity/graphic/path_builder.hpp>
 #include <skity/render/canvas.hpp>
 
 #include "src/graphic/path_priv.hpp"
@@ -125,8 +126,9 @@ TEST(SWCanvas, StrokeThenFillDrawsFillAfterStroke) {
   paint.SetFillColor(skity::Color_WHITE);
   paint.SetAntiAlias(false);
 
-  skity::Path path;
-  path.AddRect(skity::Rect::MakeXYWH(10.f, 10.f, 24.f, 24.f));
+  skity::PathBuilder path_builder;
+  path_builder.AddRect(skity::Rect::MakeXYWH(10.f, 10.f, 24.f, 24.f));
+  skity::Path path = path_builder.Detach();
   canvas->DrawPath(path, paint);
 
   EXPECT_EQ(bitmap.GetPixel(12, 20), skity::Color_WHITE);
@@ -135,11 +137,11 @@ TEST(SWCanvas, StrokeThenFillDrawsFillAfterStroke) {
 
 TEST(SWCanvas, PathEdgesCloseEachContourAndSkipEmptyEdges) {
   skity::SWEdgeBuilder empty;
-  skity::Path path;
+  skity::PathBuilder path;
   const auto bounds = skity::Rect::MakeWH(64.f, 64.f);
-  EXPECT_EQ(empty.BuildEdges(path, bounds), 0);
+  EXPECT_EQ(empty.BuildEdges(path.Snapshot(), bounds), 0);
   path.MoveTo(1, 1).Close().MoveTo(2, 2);
-  EXPECT_EQ(empty.BuildEdges(path, bounds), 0);
+  EXPECT_EQ(empty.BuildEdges(path.Snapshot(), bounds), 0);
 
   for (bool explicit_close : {false, true}) {
     SCOPED_TRACE(explicit_close);
@@ -161,7 +163,7 @@ TEST(SWCanvas, PathEdgesCloseEachContourAndSkipEmptyEdges) {
     }
     path.MoveTo(60, 60);
     skity::SWEdgeBuilder builder;
-    ASSERT_EQ(builder.BuildEdges(path, bounds), 7);
+    ASSERT_EQ(builder.BuildEdges(path.Detach(), bounds), 7);
     const auto& edges = builder.GetEdges();
     EXPECT_EQ(edges[0]->winding, 1);
     EXPECT_EQ(edges[1]->winding, -1);
@@ -174,9 +176,10 @@ TEST(SWCanvas, PathEdgesCloseEachContourAndSkipEmptyEdges) {
 }
 
 TEST(PathEdgeIter, PlanarReadsPreserveClosingEdgesAndContourBoundaries) {
-  skity::Path path;
-  path.MoveTo(1, 2).ConicTo(3, 4, 5, 6, 0.5f);
-  path.MoveTo(10, 20).LineTo(10, 20).Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(1, 2).ConicTo(3, 4, 5, 6, 0.5f);
+  path_builder.MoveTo(10, 20).LineTo(10, 20).Close();
+  skity::Path path = path_builder.Detach();
   skity::PathEdgeIter iter(path);
 
   auto edge = iter.next();

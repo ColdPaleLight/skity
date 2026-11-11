@@ -37,7 +37,7 @@ enum SerializationVersions {
 enum SerializationType { kGeneral = 0, kRRect = 1 };
 
 struct PathData {
-  std::vector<Vec2> points;
+  std::vector<skity_vec2> points;
   std::vector<float> weights;
   std::vector<uint8_t> verbs;
 };
@@ -45,72 +45,24 @@ struct PathData {
 PathData QueryPathData(const Path& path) {
   PathData data;
 
-  // Flat bulk read of the path storage (verbs + points + conic weights) and
-  // a replay projecting each verb to the control points it contributes —
-  // the same point sequence Path::Iter yields, minus each segment's start.
   std::shared_ptr<Path> view(const_cast<Path*>(&path), [](Path*) {});
   skity_path handle = skity::capi::alloc_handle<skity_path_s>(
       SKITY_OBJECT_TYPE_PATH, 0, std::move(view));
-
-  if (handle != nullptr) {
-    std::vector<skity_path_verb> verbs(
-        skity_path_get_verbs(handle, nullptr, 0));
-    std::vector<skity_point> points(skity_path_get_points(handle, nullptr, 0));
-    std::vector<float> weights(
-        skity_path_get_conic_weights(handle, nullptr, 0));
-    skity_path_get_verbs(handle, verbs.data(),
-                         static_cast<int32_t>(verbs.size()));
-    skity_path_get_points(handle, points.data(),
-                          static_cast<int32_t>(points.size()));
-    skity_path_get_conic_weights(handle, weights.data(),
-                                 static_cast<int32_t>(weights.size()));
-    skity_path_destroy(handle);
-
-    size_t pt = 0;
-    size_t w = 0;
-    for (skity_path_verb verb : verbs) {
-      switch (verb) {
-        // The point storage is incremental: every verb stores only the
-        // points it introduces (move/line 1, quad/conic 2, cubic 3), so the
-        // projected control points sit at [pt..] directly.
-        case SKITY_PATH_VERB_MOVE:
-          data.verbs.push_back(static_cast<uint8_t>(verb));
-          data.points.push_back({points[pt].x, points[pt].y});
-          pt += 1;
-          break;
-        case SKITY_PATH_VERB_LINE:
-          data.verbs.push_back(static_cast<uint8_t>(verb));
-          data.points.push_back({points[pt].x, points[pt].y});
-          pt += 1;
-          break;
-        case SKITY_PATH_VERB_QUAD:
-          data.verbs.push_back(static_cast<uint8_t>(verb));
-          data.points.push_back({points[pt].x, points[pt].y});
-          data.points.push_back({points[pt + 1].x, points[pt + 1].y});
-          pt += 2;
-          break;
-        case SKITY_PATH_VERB_CUBIC:
-          data.verbs.push_back(static_cast<uint8_t>(verb));
-          data.points.push_back({points[pt].x, points[pt].y});
-          data.points.push_back({points[pt + 1].x, points[pt + 1].y});
-          data.points.push_back({points[pt + 2].x, points[pt + 2].y});
-          pt += 3;
-          break;
-        case SKITY_PATH_VERB_CONIC:
-          data.verbs.push_back(static_cast<uint8_t>(verb));
-          data.points.push_back({points[pt].x, points[pt].y});
-          data.points.push_back({points[pt + 1].x, points[pt + 1].y});
-          data.weights.push_back(weights[w++]);
-          pt += 2;
-          break;
-        case SKITY_PATH_VERB_CLOSE:
-          data.verbs.push_back(static_cast<uint8_t>(verb));
-          break;
-        default:
-          break;
-      }
-    }
+  if (!handle) {
+    return data;
   }
+
+  std::vector<skity_path_verb> verbs(skity_path_get_verbs(handle, nullptr, 0));
+  data.points.resize(skity_path_copy_points_2d(handle, nullptr, 0));
+  data.weights.resize(skity_path_get_conic_weights(handle, nullptr, 0));
+  skity_path_get_verbs(handle, verbs.data(),
+                       static_cast<int32_t>(verbs.size()));
+  skity_path_copy_points_2d(handle, data.points.data(), data.points.size());
+  skity_path_get_conic_weights(handle, data.weights.data(),
+                               static_cast<int32_t>(data.weights.size()));
+  skity_path_destroy(handle);
+
+  data.verbs.assign(verbs.begin(), verbs.end());
 
   return data;
 }

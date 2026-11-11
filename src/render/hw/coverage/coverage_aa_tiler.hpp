@@ -51,6 +51,7 @@ class CoverageAAPathTiler {
   CoverageAATileRect tile_bounds_;
   std::vector<int32_t> row_backdrops_;
   std::vector<TileState> tile_states_;
+  std::vector<Vec2> transformed_points_;
   std::vector<CoverageAATile>& tiles_;
   std::vector<CoverageAATileLine>& lines_;
   std::vector<uint32_t>& line_range_counts_;

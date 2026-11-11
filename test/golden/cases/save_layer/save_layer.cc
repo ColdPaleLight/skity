@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 
 #include <filesystem>
+#include <skity/graphic/path_builder.hpp>
 #include <skity/recorder/picture_recorder.hpp>
 #include <string>
 
@@ -235,12 +236,13 @@ TEST(SaveLayerGolden, PerspectiveZ0Plane) {
   skity::Paint mask_layer_paint;
   mask_layer_paint.SetBlendMode(skity::BlendMode::kDstIn);
   canvas->SaveLayer(layer_bounds, mask_layer_paint);
-  skity::Path flap;
-  flap.MoveTo(55.f, -16.5f);
-  flap.LineTo(480.f, -16.5f);
-  flap.LineTo(558.5f, 172.5f);
-  flap.LineTo(-23.f, 172.5f);
-  flap.Close();
+  skity::PathBuilder flap_builder;
+  flap_builder.MoveTo(55.f, -16.5f);
+  flap_builder.LineTo(480.f, -16.5f);
+  flap_builder.LineTo(558.5f, 172.5f);
+  flap_builder.LineTo(-23.f, 172.5f);
+  flap_builder.Close();
+  skity::Path flap = flap_builder.Detach();
   skity::Paint mask_paint;
   mask_paint.SetColor(skity::Color_WHITE);
   canvas->DrawPath(flap, mask_paint);

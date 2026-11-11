@@ -10,6 +10,7 @@
 #include <skity/effect/image_filter.hpp>
 #include <skity/effect/mask_filter.hpp>
 #include <skity/effect/shader.hpp>
+#include <skity/graphic/path_builder.hpp>
 #include <skity/recorder/picture_recorder.hpp>
 #include <skity/skity.hpp>
 
@@ -255,8 +256,9 @@ TEST(DisplayList, NonzeroBufferAndResourceLifetimeAcrossGrowth) {
       skity::ColorFilters::Blend(skity::Color_RED, skity::BlendMode::kSrc);
   std::weak_ptr<skity::ColorFilter> weak_filter = filter;
   paint.SetColorFilter(filter);
-  skity::Path path;
-  path.AddRect(rect);
+  skity::PathBuilder path_builder;
+  path_builder.AddRect(rect);
+  skity::Path path = path_builder.Detach();
   auto image = skity::Image::MakeDeferredTextureImage(
       skity::TextureFormat::kRGBA, 20, 20, skity::AlphaType::kPremul_AlphaType);
   std::weak_ptr<skity::Image> weak_image = image;
@@ -437,11 +439,12 @@ TEST(DisplayList, CanCalculateBounds) {
   bounds = CalculateDisplayListBounds(
       /*cull_rect=*/skity::Rect::MakeLTRB(0, 0, 100, 100),
       [](skity::Canvas* canvas) {
-        skity::Path path;
-        path.MoveTo(30, 30);
-        path.LineTo(60, 60);
-        path.LineTo(30, 60);
-        path.Close();
+        skity::PathBuilder path_builder;
+        path_builder.MoveTo(30, 30);
+        path_builder.LineTo(60, 60);
+        path_builder.LineTo(30, 60);
+        path_builder.Close();
+        skity::Path path = path_builder.Detach();
         canvas->DrawPath(path, skity::Paint{});
       });
   EXPECT_EQ(bounds, skity::Rect::MakeLTRB(30, 30, 60, 60));
@@ -449,11 +452,12 @@ TEST(DisplayList, CanCalculateBounds) {
   bounds = CalculateDisplayListBounds(
       /*cull_rect=*/skity::Rect::MakeLTRB(0, 0, 100, 100),
       [](skity::Canvas* canvas) {
-        skity::Path path;
-        path.MoveTo(30, 30);
-        path.LineTo(60, 60);
-        path.LineTo(30, 60);
-        path.Close();
+        skity::PathBuilder path_builder;
+        path_builder.MoveTo(30, 30);
+        path_builder.LineTo(60, 60);
+        path_builder.LineTo(30, 60);
+        path_builder.Close();
+        skity::Path path = path_builder.Detach();
         skity::Paint paint;
         paint.SetStrokeWidth(10);
         paint.SetStyle(skity::Paint::kStroke_Style);
@@ -466,11 +470,12 @@ TEST(DisplayList, CanCalculateBounds) {
       /*cull_rect=*/skity::Rect::MakeLTRB(0, 0, 100, 100),
       [](skity::Canvas* canvas) {
         canvas->ClipRect(skity::Rect::MakeLTRB(40, 20, 70, 50));
-        skity::Path path;
-        path.MoveTo(30, 30);
-        path.LineTo(60, 60);
-        path.LineTo(30, 60);
-        path.Close();
+        skity::PathBuilder path_builder;
+        path_builder.MoveTo(30, 30);
+        path_builder.LineTo(60, 60);
+        path_builder.LineTo(30, 60);
+        path_builder.Close();
+        skity::Path path = path_builder.Detach();
         canvas->DrawPath(path, skity::Paint{});
       });
   EXPECT_EQ(bounds, skity::Rect::MakeLTRB(40, 30, 60, 50));
@@ -479,11 +484,12 @@ TEST(DisplayList, CanCalculateBounds) {
       /*cull_rect=*/skity::Rect::MakeLTRB(0, 0, 200, 200),
       [](skity::Canvas* canvas) {
         canvas->Scale(2, 2);
-        skity::Path path;
-        path.MoveTo(30, 30);
-        path.LineTo(60, 60);
-        path.LineTo(30, 60);
-        path.Close();
+        skity::PathBuilder path_builder;
+        path_builder.MoveTo(30, 30);
+        path_builder.LineTo(60, 60);
+        path_builder.LineTo(30, 60);
+        path_builder.Close();
+        skity::Path path = path_builder.Detach();
         canvas->DrawPath(path, skity::Paint{});
       });
   EXPECT_EQ(bounds, skity::Rect::MakeLTRB(60, 60, 120, 120));

@@ -10,6 +10,7 @@
 #include <skity/graphic/image.hpp>
 #include <skity/graphic/paint.hpp>
 #include <skity/graphic/path.hpp>
+#include <skity/graphic/path_builder.hpp>
 #include <skity/io/pixmap.hpp>
 #include <skity/render/canvas.hpp>
 #include <skity/render/precompile_context.hpp>
@@ -49,13 +50,13 @@ namespace {
 constexpr Rect kPrecompileBounds = {0.f, 0.f, 32.f, 32.f};
 
 Path MakePrecompilePath() {
-  Path path;
+  PathBuilder path;
   path.MoveTo(0.f, 0.f);
   path.LineTo(16.f, 0.f);
   path.LineTo(0.f, 16.f);
   path.LineTo(16.f, 16.f);
   path.Close();
-  return path;
+  return path.Detach();
 }
 
 RRect MakePrecompileRRect() {

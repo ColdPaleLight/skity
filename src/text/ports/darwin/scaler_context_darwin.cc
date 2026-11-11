@@ -12,6 +12,7 @@
 #include <cstring>
 #include <limits>
 #include <skity/geometry/stroke.hpp>
+#include <skity/graphic/path_builder.hpp>
 #include <utility>
 
 #include "src/render/text/glyph_position.hpp"
@@ -317,7 +318,7 @@ CGColorRef OffScreenContext::GetCGColor() const {
 
 class CGPathConvertor {
  public:
-  explicit CGPathConvertor(Path *path) : path_(path) {}
+  explicit CGPathConvertor(PathBuilder *path) : path_(path) {}
   ~CGPathConvertor() = default;
 
   bool CurrentIsNot(const CGPoint pt) {
@@ -376,7 +377,7 @@ class CGPathConvertor {
   }
 
  private:
-  Path *path_;
+  PathBuilder *path_;
   CGPoint current_;
   bool started_ = false;
 };
@@ -682,10 +683,10 @@ bool ScalerContextDarwin::GeneratePath(GlyphData *glyph) {
     return false;
   }
 
-  glyph->path_.Reset();
-
-  CGPathConvertor convertor(&glyph->path_);
+  PathBuilder builder;
+  CGPathConvertor convertor(&builder);
   CGPathApply(cg_path.get(), &convertor, CGPathConvertor::ApplyElement);
+  builder.DetachTo(&glyph->path_);
 
   return true;
 }

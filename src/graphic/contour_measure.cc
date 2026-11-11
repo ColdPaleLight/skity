@@ -8,6 +8,7 @@
 
 #include <array>
 #include <cassert>
+#include <skity/graphic/path_builder.hpp>
 
 #include "src/geometry/conic.hpp"
 #include "src/geometry/geometry.hpp"
@@ -109,7 +110,8 @@ static void compute_pos_tan(const Point pts[], unsigned segType, float t,
 }
 
 static void contour_measure_seg_to(const Point pts[], unsigned segType,
-                                   float startT, float stopT, Path* dst) {
+                                   float startT, float stopT,
+                                   PathBuilder* dst) {
   assert(startT >= 0 && startT <= Float1);
   assert(stopT >= 0 && stopT <= Float1);
   assert(startT <= stopT);
@@ -122,7 +124,7 @@ static void contour_measure_seg_to(const Point pts[], unsigned segType,
        *  lines as appropriate
        */
       Vec2 lastPt;
-      auto ret = dst->GetLastPt2D(&lastPt);
+      auto ret = dst->GetLastPt(&lastPt);
       if (ret) {
         dst->LineTo(lastPt.x, lastPt.y);
       }
@@ -136,7 +138,7 @@ static void contour_measure_seg_to(const Point pts[], unsigned segType,
   switch (segType) {
     case ContourMeasure::kLine_SegType:
       if (Float1 == stopT) {
-        dst->LineTo(pts[1]);
+        dst->LineTo(Vec2{pts[1]});
       } else {
         dst->LineTo(FloatInterp(pts[0].x, pts[1].x, stopT),
                     FloatInterp(pts[0].y, pts[1].y, stopT));
@@ -145,19 +147,19 @@ static void contour_measure_seg_to(const Point pts[], unsigned segType,
     case ContourMeasure::kQuad_SegType:
       if (0 == startT) {
         if (Float1 == stopT) {
-          dst->QuadTo(pts[1], pts[2]);
+          dst->QuadTo(Vec2{pts[1]}, Vec2{pts[2]});
         } else {
           QuadCoeff::ChopQuadAt(pts, tmp0.data(), stopT);
-          dst->QuadTo(tmp0[1], tmp0[2]);
+          dst->QuadTo(Vec2{tmp0[1]}, Vec2{tmp0[2]});
         }
       } else {
         QuadCoeff::ChopQuadAt(pts, tmp0.data(), startT);
         if (Float1 == stopT) {
-          dst->QuadTo(tmp0[3], tmp0[4]);
+          dst->QuadTo(Vec2{tmp0[3]}, Vec2{tmp0[4]});
         } else {
           QuadCoeff::ChopQuadAt(&tmp0[2], tmp1.data(),
                                 (stopT - startT) / (1.f - startT));
-          dst->QuadTo(tmp1[1], tmp1[2]);
+          dst->QuadTo(Vec2{tmp1[1]}, Vec2{tmp1[2]});
         }
       }
       break;
@@ -165,42 +167,42 @@ static void contour_measure_seg_to(const Point pts[], unsigned segType,
       Conic conic{pts[0], pts[2], pts[3], pts[1].x};
       if (0.f == startT) {
         if (Float1 == stopT) {
-          dst->ConicTo(conic.pts[1], conic.pts[2], conic.w);
+          dst->ConicTo(Vec2{conic.pts[1]}, Vec2{conic.pts[2]}, conic.w);
         } else {
           std::array<Conic, 2> tmp;
           if (conic.ChopAt(stopT, tmp.data())) {
-            dst->ConicTo(tmp[0].pts[1], tmp[0].pts[2], tmp[0].w);
+            dst->ConicTo(Vec2{tmp[0].pts[1]}, Vec2{tmp[0].pts[2]}, tmp[0].w);
           }
         }
       } else {
         if (Float1 == stopT) {
           std::array<Conic, 2> tmp;
           if (conic.ChopAt(startT, tmp.data())) {
-            dst->ConicTo(tmp[1].pts[1], tmp[1].pts[2], tmp[1].w);
+            dst->ConicTo(Vec2{tmp[1].pts[1]}, Vec2{tmp[1].pts[2]}, tmp[1].w);
           }
         } else {
           Conic tmp;
           conic.ChopAt(startT, stopT, &tmp);
-          dst->ConicTo(tmp.pts[1], tmp.pts[2], tmp.w);
+          dst->ConicTo(Vec2{tmp.pts[1]}, Vec2{tmp.pts[2]}, tmp.w);
         }
       }
     } break;
     case ContourMeasure::kCubic_SegType:
       if (0 == startT) {
         if (Float1 == stopT) {
-          dst->CubicTo(pts[1], pts[2], pts[3]);
+          dst->CubicTo(Vec2{pts[1]}, Vec2{pts[2]}, Vec2{pts[3]});
         } else {
           CubicCoeff::ChopCubicAt(pts, tmp0.data(), stopT);
-          dst->CubicTo(tmp0[1], tmp0[2], tmp0[3]);
+          dst->CubicTo(Vec2{tmp0[1]}, Vec2{tmp0[2]}, Vec2{tmp0[3]});
         }
       } else {
         CubicCoeff::ChopCubicAt(pts, tmp0.data(), startT);
         if (Float1 == stopT) {
-          dst->CubicTo(tmp0[4], tmp0[5], tmp0[6]);
+          dst->CubicTo(Vec2{tmp0[4]}, Vec2{tmp0[5]}, Vec2{tmp0[6]});
         } else {
           CubicCoeff::ChopCubicAt(&tmp0[3], tmp1.data(),
                                   (stopT - startT) / (1.f - startT));
-          dst->CubicTo(tmp1[1], tmp1[2], tmp1[3]);
+          dst->CubicTo(Vec2{tmp1[1]}, Vec2{tmp1[2]}, Vec2{tmp1[3]});
         }
       }
       break;
@@ -585,7 +587,7 @@ bool ContourMeasure::getPosTan(float distance, Point* position,
   return true;
 }
 
-bool ContourMeasure::getSegment(float startD, float stopD, Path* dst,
+bool ContourMeasure::getSegment(float startD, float stopD, PathBuilder* dst,
                                 bool startWithMoveTo) const {
   assert(dst);
 
@@ -622,7 +624,7 @@ bool ContourMeasure::getSegment(float startD, float stopD, Path* dst,
 
   if (startWithMoveTo) {
     compute_pos_tan(&pts_[seg->pt_index], seg->type, startT, &p, nullptr);
-    dst->MoveTo(p);
+    dst->MoveTo(Vec2{p});
   }
 
   if (seg->pt_index == stopSeg->pt_index) {

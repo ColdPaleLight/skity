@@ -12,6 +12,7 @@
 #include <skity/graphic/image.hpp>
 #include <skity/graphic/paint.hpp>
 #include <skity/graphic/path.hpp>
+#include <skity/graphic/path_builder.hpp>
 #include <skity/graphic/sampling_options.hpp>
 #include <skity/io/pixmap.hpp>
 #include <skity/render/canvas.hpp>
@@ -492,21 +493,23 @@ void PrecompileDraw(FakeGPUContext& context, bool enable_msaa,
 }
 
 Path MakeTestPath() {
-  Path path;
-  path.MoveTo(0.f, 0.f);
-  path.LineTo(16.f, 0.f);
-  path.LineTo(0.f, 16.f);
-  path.LineTo(16.f, 16.f);
-  path.Close();
+  PathBuilder path_builder;
+  path_builder.MoveTo(0.f, 0.f);
+  path_builder.LineTo(16.f, 0.f);
+  path_builder.LineTo(0.f, 16.f);
+  path_builder.LineTo(16.f, 16.f);
+  path_builder.Close();
+  Path path = path_builder.Detach();
   return path;
 }
 
 Path MakeConvexTestPath() {
-  Path path;
-  path.MoveTo(2.f, 2.f);
-  path.LineTo(24.f, 4.f);
-  path.LineTo(8.f, 26.f);
-  path.Close();
+  PathBuilder path_builder;
+  path_builder.MoveTo(2.f, 2.f);
+  path_builder.LineTo(24.f, 4.f);
+  path_builder.LineTo(8.f, 26.f);
+  path_builder.Close();
+  Path path = path_builder.Detach();
   return path;
 }
 
@@ -655,8 +658,9 @@ TEST(InitialColorClear, FullRectPathReplacesRetainedColor) {
   desc.width = desc.height = 32;
   FakeGPUSurface surface(desc, &context, GPUTextureFormat::kRGBA8Unorm, true);
   auto* canvas = surface.LockCanvas(false);
-  Path path;
-  path.AddRect(Rect::MakeWH(32, 32));
+  PathBuilder path_builder;
+  path_builder.AddRect(Rect::MakeWH(32, 32));
+  Path path = path_builder.Detach();
   Paint paint;
   paint.SetBlendMode(BlendMode::kSrc);
   paint.SetFillColor(Color4f{1, 0, 0, 0.5f});
@@ -721,17 +725,19 @@ TEST(InitialColorClear, RetainsDestinationWhenPromotionIsUnsafe) {
     c->Restore();
   });
   expect_load([](Canvas* c) {
-    Path path;
-    path.SetFillType(Path::PathFillType::kEvenOdd);
-    path.AddRect(Rect::MakeWH(32, 32));
-    path.AddRect(Rect::MakeLTRB(8, 8, 24, 24));
+    PathBuilder path_builder;
+    path_builder.SetFillType(Path::PathFillType::kEvenOdd);
+    path_builder.AddRect(Rect::MakeWH(32, 32));
+    path_builder.AddRect(Rect::MakeLTRB(8, 8, 24, 24));
+    Path path = path_builder.Detach();
     c->DrawPath(path, Paint{});
   });
   expect_load([](Canvas* c) {
-    Path path;
-    path.MoveTo(0, 0);
-    path.Close();
-    path.AddRect(Rect::MakeLTRB(8, 8, 32, 32));
+    PathBuilder path_builder;
+    path_builder.MoveTo(0, 0);
+    path_builder.Close();
+    path_builder.AddRect(Rect::MakeLTRB(8, 8, 32, 32));
+    Path path = path_builder.Detach();
     c->DrawPath(path, Paint{});
   });
 }
@@ -938,11 +944,12 @@ TEST(PrecompileDrawTest, AnalyticalAAModesAreMutuallyExclusiveInsideCanvas) {
   perspective.SetPersp0(0.001f);
   canvas->Concat(perspective);
 
-  Path path;
-  path.MoveTo(8, 8);
-  path.LineTo(56, 8);
-  path.LineTo(8, 56);
-  path.Close();
+  PathBuilder path_builder;
+  path_builder.MoveTo(8, 8);
+  path_builder.LineTo(56, 8);
+  path_builder.LineTo(8, 56);
+  path_builder.Close();
+  Path path = path_builder.Detach();
 
   Paint paint;
   paint.SetAntiAlias(true);
@@ -974,24 +981,26 @@ TEST(PrecompileDrawTest,
   auto* canvas = surface->LockCanvas(true);
   ASSERT_NE(canvas, nullptr);
 
-  Path path;
-  path.MoveTo(16, 16);
-  path.LineTo(48, 16);
-  path.LineTo(48, 48);
-  path.LineTo(16, 48);
-  path.Close();
-  path.SetFillType(Path::PathFillType::kEvenOdd);
+  PathBuilder path_builder;
+  path_builder.MoveTo(16, 16);
+  path_builder.LineTo(48, 16);
+  path_builder.LineTo(48, 48);
+  path_builder.LineTo(16, 48);
+  path_builder.Close();
+  path_builder.SetFillType(Path::PathFillType::kEvenOdd);
+  Path path = path_builder.Detach();
 
   Paint paint;
   paint.SetAntiAlias(true);
   canvas->DrawPath(path, paint);
 
-  Path second_path;
-  second_path.MoveTo(8, 8);
-  second_path.LineTo(24, 8);
-  second_path.LineTo(8, 24);
-  second_path.Close();
-  second_path.SetFillType(Path::PathFillType::kEvenOdd);
+  PathBuilder second_path_builder;
+  second_path_builder.MoveTo(8, 8);
+  second_path_builder.LineTo(24, 8);
+  second_path_builder.LineTo(8, 24);
+  second_path_builder.Close();
+  second_path_builder.SetFillType(Path::PathFillType::kEvenOdd);
+  Path second_path = second_path_builder.Detach();
   canvas->DrawPath(second_path, paint);
 
   canvas->Flush();
@@ -1021,8 +1030,9 @@ TEST(PrecompileDrawTest, SurfaceCanDisableCoverageAADefault) {
   auto* canvas = surface->LockCanvas(true);
   ASSERT_NE(canvas, nullptr);
 
-  Path path;
-  path.AddRect(Rect::MakeLTRB(8, 8, 56, 56));
+  PathBuilder path_builder;
+  path_builder.AddRect(Rect::MakeLTRB(8, 8, 56, 56));
+  Path path = path_builder.Detach();
   Paint paint;
   paint.SetAntiAlias(true);
   canvas->DrawPath(path, paint);
@@ -1047,8 +1057,9 @@ TEST(PrecompileDrawTest, SurfaceCanEnableCoverageAAWithoutContextDefault) {
   auto* canvas = surface->LockCanvas(true);
   ASSERT_NE(canvas, nullptr);
 
-  Path path;
-  path.AddRect(Rect::MakeLTRB(8, 8, 56, 56));
+  PathBuilder path_builder;
+  path_builder.AddRect(Rect::MakeLTRB(8, 8, 56, 56));
+  Path path = path_builder.Detach();
   Paint paint;
   paint.SetAntiAlias(true);
   canvas->DrawPath(path, paint);
@@ -1106,8 +1117,9 @@ TEST(PrecompileDrawTest, SurfaceCanSelectConflationCorrection) {
   auto* canvas = surface->LockCanvas(true);
   ASSERT_NE(canvas, nullptr);
 
-  Path path;
-  path.AddRect(Rect::MakeLTRB(8, 8, 56, 56));
+  PathBuilder path_builder;
+  path_builder.AddRect(Rect::MakeLTRB(8, 8, 56, 56));
+  Path path = path_builder.Detach();
   Paint paint;
   paint.SetAntiAlias(true);
   canvas->DrawPath(path, paint);
@@ -1133,8 +1145,9 @@ TEST(PrecompileDrawTest, RenderTargetUsesSurfaceCoverageAAOptions) {
   auto target = context.CreateRenderTarget(target_desc);
   ASSERT_NE(target, nullptr);
 
-  Path path;
-  path.AddRect(Rect::MakeLTRB(8, 8, 56, 56));
+  PathBuilder path_builder;
+  path_builder.AddRect(Rect::MakeLTRB(8, 8, 56, 56));
+  Path path = path_builder.Detach();
   Paint paint;
   paint.SetAntiAlias(true);
   target->GetCanvas()->DrawPath(path, paint);
@@ -1161,11 +1174,12 @@ TEST(PrecompileDrawTest, CoverageAADoesNotAddLayerMaskPasses) {
   auto* canvas = surface->LockCanvas(true);
   ASSERT_NE(canvas, nullptr);
 
-  Path path;
-  path.MoveTo(8, 8);
-  path.LineTo(40, 8);
-  path.LineTo(8, 40);
-  path.Close();
+  PathBuilder path_builder;
+  path_builder.MoveTo(8, 8);
+  path_builder.LineTo(40, 8);
+  path_builder.LineTo(8, 40);
+  path_builder.Close();
+  Path path = path_builder.Detach();
 
   Paint paint;
   paint.SetAntiAlias(true);
@@ -1613,11 +1627,10 @@ TEST(PrecompileDrawTest, PrecompiledRRectPipelineIsHitByRealDraw) {
 }
 
 TEST(SimpleShapeDrawTest, AffinePathsUseRRectPipelineAndMerge) {
-  Path paths[3];
   const Rect bounds = Rect::MakeLTRB(-8.f, -6.f, 8.f, 6.f);
-  paths[0].AddRect(bounds);
-  paths[1].AddOval(bounds);
-  paths[2].AddRoundRect(bounds, 2.f, 3.f);
+  const Path paths[] = {PathBuilder().AddRect(bounds).Detach(),
+                        PathBuilder().AddOval(bounds).Detach(),
+                        PathBuilder().AddRoundRect(bounds, 2.f, 3.f).Detach()};
 
   // Exact 90 degrees has zero diagonal entries but is still invertible.
   Matrix quarter_turn = Matrix::Scale(0.f, 0.f);

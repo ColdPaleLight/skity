@@ -4,19 +4,22 @@
 
 #include "case/pathop/pathop_example.hpp"
 
+#include <skity/graphic/path_builder.hpp>
 #include <skity/skity.hpp>
 
 namespace skity::example::pathop {
 
 void draw_pathop_example(skity::Canvas* canvas) {
-  skity::Path one;
-  one.MoveTo(10, 10);
-  one.ConicTo(0, 90, 50, 50, 3);
-  one.ConicTo(90, 0, 90, 90, 2);
-  one.Close();
+  skity::PathBuilder one_builder;
+  one_builder.MoveTo(10, 10);
+  one_builder.ConicTo(0, 90, 50, 50, 3);
+  one_builder.ConicTo(90, 0, 90, 90, 2);
+  one_builder.Close();
+  skity::Path one = one_builder.Detach();
 
-  skity::Path two;
-  two.AddRect(skity::Rect::MakeXYWH(40, 40, 100, 100));
+  skity::PathBuilder two_builder;
+  two_builder.AddRect(skity::Rect::MakeXYWH(40, 40, 100, 100));
+  skity::Path two = two_builder.Detach();
 
   skity::Paint stroke_paint;
   stroke_paint.SetStyle(skity::Paint::kStroke_Style);

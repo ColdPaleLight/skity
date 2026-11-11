@@ -16,6 +16,7 @@
 #include <cmath>
 #include <limits>
 #include <skity/effect/shader.hpp>
+#include <skity/graphic/path_builder.hpp>
 #include <unordered_set>
 
 #include "src/base/fixed_types.hpp"
@@ -717,7 +718,7 @@ bool configure_paint(ColorContext context, const FT_COLR_Paint& colr_paint,
 
 Path clip_box_path(ColorContext context, GlyphID glyph_id, bool untransformed) {
   FT_Face face = context.face;
-  Path result;
+  PathBuilder result;
   using DoneFTSize = FunctionWrapper<decltype(FT_Done_Size), FT_Done_Size>;
 
   FT_Size old_size = face->size;
@@ -736,14 +737,14 @@ Path clip_box_path(ColorContext context, GlyphID glyph_id, bool untransformed) {
         }());
 
     if (nullptr == ft_size) {
-      return result;
+      return result.Detach();
     }
 
     if (FT_Activate_Size(ft_size.get())) {
-      return result;
+      return result.Detach();
     }
     if (FT_Set_Char_Size(face, IntToFixedDot6(face->units_per_EM), 0, 0, 0)) {
-      return result;
+      return result.Detach();
     }
 
     FT_Get_Transform(face, &old_transform, &old_delta);
@@ -765,12 +766,12 @@ Path clip_box_path(ColorContext context, GlyphID glyph_id, bool untransformed) {
 
   if (untransformed) {
     if (FT_Activate_Size(old_size)) {
-      return result;
+      return result.Detach();
     }
     FT_Set_Transform(face, &old_transform, &old_delta);
   }
 
-  return result;
+  return result.Detach();
 }
 
 }  // namespace

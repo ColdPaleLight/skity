@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <skity/gpu/gpu_context.hpp>
+#include <skity/graphic/path_builder.hpp>
 #include <skity/skity.hpp>
 #if !defined(SKITY_ANDROID) && !defined(SKITY_HARMONY)
 #include <skity/codec/codec.hpp>
@@ -336,24 +337,27 @@ void draw_graph(skity::Canvas* canvas, float x, float y, float w, float h,
         skity::Shader::MakeLinear(pts.data(), colors.data(), nullptr, 2));
   }
 
-  skity::Path path;
-  path.MoveTo(sx[0], sy[0]);
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(sx[0], sy[0]);
   for (int32_t i = 1; i < 6; i++) {
-    path.CubicTo(sx[i - 1] + dx * 0.5f, sy[i - 1], sx[i] - dx * 0.5f, sy[i],
-                 sx[i], sy[i]);
+    path_builder.CubicTo(sx[i - 1] + dx * 0.5f, sy[i - 1], sx[i] - dx * 0.5f,
+                         sy[i], sx[i], sy[i]);
   }
-  path.LineTo(x + w, y + h);
-  path.LineTo(x, y + h);
-  path.Close();
+  path_builder.LineTo(x + w, y + h);
+  path_builder.LineTo(x, y + h);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
   canvas->DrawPath(path, paint);
 
   // graph line
-  skity::Path graph_line;
-  graph_line.MoveTo(sx[0], sy[0] + 2.f);
+  skity::PathBuilder graph_line_builder;
+  graph_line_builder.MoveTo(sx[0], sy[0] + 2.f);
   for (int32_t i = 1; i < 6; i++) {
-    graph_line.CubicTo(sx[i - 1] + dx * 0.5f, sy[i - 1] + 2, sx[i] - dx * 0.5f,
-                       sy[i] + 2.f, sx[i], sy[i] + 2.f);
+    graph_line_builder.CubicTo(sx[i - 1] + dx * 0.5f, sy[i - 1] + 2,
+                               sx[i] - dx * 0.5f, sy[i] + 2.f, sx[i],
+                               sy[i] + 2.f);
   }
+  skity::Path graph_line = graph_line_builder.Detach();
   paint.SetShader(nullptr);
   paint.SetStyle(skity::Paint::kStroke_Style);
   paint.SetStrokeColor(0.f, 0.f, 0.f, 32.f / 255.f);
@@ -361,12 +365,13 @@ void draw_graph(skity::Canvas* canvas, float x, float y, float w, float h,
 
   canvas->DrawPath(graph_line, paint);
 
-  skity::Path graph_line2;
-  graph_line2.MoveTo(sx[0], sy[0]);
+  skity::PathBuilder graph_line2_builder;
+  graph_line2_builder.MoveTo(sx[0], sy[0]);
   for (int32_t i = 1; i < 6; i++) {
-    graph_line2.CubicTo(sx[i - 1] + dx * 0.5f, sy[i - 1], sx[i] - dx * 0.5f,
-                        sy[i], sx[i], sy[i]);
+    graph_line2_builder.CubicTo(sx[i - 1] + dx * 0.5f, sy[i - 1],
+                                sx[i] - dx * 0.5f, sy[i], sx[i], sy[i]);
   }
+  skity::Path graph_line2 = graph_line2_builder.Detach();
   paint.SetStrokeColor(0.f, 160.f / 255.f, 192.f / 255.f, 1.f);
   canvas->DrawPath(graph_line2, paint);
 
@@ -440,12 +445,13 @@ void draw_color_wheel(skity::Canvas* canvas, float x, float y, float w, float h,
 
     skity::Vec2 p1c = skity::Vec2{p1_x - cx, p1_y - cy};
 
-    skity::Path path;
-    path.MoveTo(p1_x, p1_y);
-    path.QuadTo(p2r.x, p2r.y, p3_x, p3_y);
-    path.LineTo(p6_x, p6_y);
-    path.QuadTo(p5r.x, p5r.y, p4_x, p4_y);
-    path.Close();
+    skity::PathBuilder path_builder;
+    path_builder.MoveTo(p1_x, p1_y);
+    path_builder.QuadTo(p2r.x, p2r.y, p3_x, p3_y);
+    path_builder.LineTo(p6_x, p6_y);
+    path_builder.QuadTo(p5r.x, p5r.y, p4_x, p4_y);
+    path_builder.Close();
+    skity::Path path = path_builder.Detach();
 
     ax = cx + std::cosf(a0) * (r0 + r1) * 0.5f;
     ay = cy + std::sinf(a0) * (r0 + r1) * 0.5f;
@@ -499,8 +505,10 @@ void draw_color_wheel(skity::Canvas* canvas, float x, float y, float w, float h,
     paint.SetStyle(skity::Paint::kStroke_Style);
     paint.SetStrokeWidth(2.f);
     paint.SetColor(skity::ColorSetARGB(192, 255, 255, 255));
-    skity::Path path;
-    path.AddRect(skity::Rect::MakeXYWH(r0 - 1.f, -3.f, r1 - r0 + 2.f, 6.f));
+    skity::PathBuilder path_builder;
+    path_builder.AddRect(
+        skity::Rect::MakeXYWH(r0 - 1.f, -3.f, r1 - r0 + 2.f, 6.f));
+    skity::Path path = path_builder.Detach();
     canvas->DrawPath(path, paint);
 
     paint.SetStyle(skity::Paint::kStroke_Style);
@@ -518,11 +526,12 @@ void draw_color_wheel(skity::Canvas* canvas, float x, float y, float w, float h,
     ay = std::sinf(120.0f / 180.0f * M_PI) * r;
     bx = std::cosf(-120.0f / 180.0f * M_PI) * r;
     by = std::sinf(-120.0f / 180.0f * M_PI) * r;
-    skity::Path triangle;
-    triangle.MoveTo(r, 0.f);
-    triangle.LineTo(ax, ay);
-    triangle.LineTo(bx, by);
-    triangle.Close();
+    skity::PathBuilder triangle_builder;
+    triangle_builder.MoveTo(r, 0.f);
+    triangle_builder.LineTo(ax, ay);
+    triangle_builder.LineTo(bx, by);
+    triangle_builder.Close();
+    skity::Path triangle = triangle_builder.Detach();
 
     skity::Paint paint;
     paint.SetAntiAlias(true);
@@ -560,8 +569,9 @@ void draw_color_wheel(skity::Canvas* canvas, float x, float y, float w, float h,
     ay = std::sinf(120.0f / 180.0f * M_PI) * r * 0.4f;
     paint.SetStyle(skity::Paint::kStroke_Style);
     paint.SetStrokeWidth(2.f);
-    skity::Path circle;
-    circle.AddCircle(ax, ay, 5.f);
+    skity::PathBuilder circle_builder;
+    circle_builder.AddCircle(ax, ay, 5.f);
+    skity::Path circle = circle_builder.Detach();
     paint.SetShader(nullptr);
     paint.SetColor(skity::ColorSetARGB(192, 255, 255, 255));
     canvas->DrawPath(circle, paint);
@@ -572,8 +582,9 @@ void draw_color_wheel(skity::Canvas* canvas, float x, float y, float w, float h,
     std::array<float, 2> stops = {7.f / 9.f, 1.f};
     paint.SetShader(skity::Shader::MakeRadial(
         skity::Point{ax, ay, 0.f, 1.f}, 9.f, colors.data(), stops.data(), 2));
-    skity::Path circle2;
-    circle2.AddCircle(ax, ay, 8.f);
+    skity::PathBuilder circle2_builder;
+    circle2_builder.AddCircle(ax, ay, 8.f);
+    skity::Path circle2 = circle2_builder.Detach();
     canvas->DrawPath(circle2, paint);
   }
 
@@ -612,11 +623,12 @@ void draw_lines(skity::Canvas* canvas, float x, float y, float w, float,
       paint.SetColor(skity::ColorSetARGB(160, 0, 0, 0));
       paint.SetStrokeWidth(s * 0.3f);
 
-      skity::Path path;
-      path.MoveTo(fx + pts[0], fy + pts[1]);
-      path.LineTo(fx + pts[2], fy + pts[3]);
-      path.LineTo(fx + pts[4], fy + pts[5]);
-      path.LineTo(fx + pts[6], fy + pts[7]);
+      skity::PathBuilder path_builder;
+      path_builder.MoveTo(fx + pts[0], fy + pts[1]);
+      path_builder.LineTo(fx + pts[2], fy + pts[3]);
+      path_builder.LineTo(fx + pts[4], fy + pts[5]);
+      path_builder.LineTo(fx + pts[6], fy + pts[7]);
+      skity::Path path = path_builder.Detach();
 
       canvas->DrawPath(path, paint);
 
@@ -638,9 +650,10 @@ void draw_widths(skity::Canvas* canvas, float x, float y, float width) {
   for (int i = 0; i < 20; i++) {
     float w = (i + 0.5f) * 0.1f;
     paint.SetStrokeWidth(w);
-    skity::Path path;
-    path.MoveTo(x, y);
-    path.LineTo(x + width, y + width * 0.3f);
+    skity::PathBuilder path_builder;
+    path_builder.MoveTo(x, y);
+    path_builder.LineTo(x + width, y + width * 0.3f);
+    skity::Path path = path_builder.Detach();
     canvas->DrawPath(path, paint);
     y += 10.f;
   }
@@ -666,9 +679,10 @@ void draw_caps(skity::Canvas* canvas, float x, float y, float width) {
   paint.SetColor(skity::Color_BLACK);
   for (int32_t i = 0; i < 3; i++) {
     paint.SetStrokeCap(caps[i]);
-    skity::Path line;
-    line.MoveTo(x, y + i * 10.f + 5.f);
-    line.LineTo(x + width, y + i * 10.f + 5.f);
+    skity::PathBuilder line_builder;
+    line_builder.MoveTo(x, y + i * 10.f + 5.f);
+    line_builder.LineTo(x + width, y + i * 10.f + 5.f);
+    skity::Path line = line_builder.Detach();
     canvas->DrawPath(line, paint);
   }
 }
@@ -683,8 +697,9 @@ void draw_scissor(skity::Canvas* canvas, float x, float y, float t) {
   canvas->Translate(x, y);
   canvas->Rotate(5.f);
   // draw first rect and clip rect for it's area.
-  skity::Path rect;
-  rect.AddRect(skity::Rect::MakeXYWH(-20, -20, 60, 40));
+  skity::PathBuilder rect_builder;
+  rect_builder.AddRect(skity::Rect::MakeXYWH(-20, -20, 60, 40));
+  skity::Path rect = rect_builder.Detach();
   paint.SetColor(skity::ColorSetARGB(255, 255, 0, 0));
   canvas->DrawPath(rect, paint);
 
@@ -740,9 +755,10 @@ void draw_window(skity::Canvas* canvas, const char* title, float x, float y,
   paint.SetShader(nullptr);
   paint.SetStyle(skity::Paint::kStroke_Style);
   paint.SetColor(skity::ColorSetARGB(32, 0, 0, 0));
-  skity::Path header;
-  header.MoveTo(x + 0.5f, y + 0.5f + 30.f);
-  header.LineTo(x + 0.5f + w - 1.f, y + 0.5f + 30.f);
+  skity::PathBuilder header_builder;
+  header_builder.MoveTo(x + 0.5f, y + 0.5f + 30.f);
+  header_builder.LineTo(x + 0.5f + w - 1.f, y + 0.5f + 30.f);
+  skity::Path header = header_builder.Detach();
   canvas->DrawPath(header, paint);
 
   paint.SetTextSize(16.f);
@@ -1008,14 +1024,16 @@ void draw_slider(skity::Canvas* canvas, float pos, float x, float y, float w,
     paint.SetShader(skity::Shader::MakeRadial(
         {x + pos * w, cy + 1.f, 0.f, 1.f}, kr + 3, colors.data(), nullptr, 2));
   }
-  skity::Path path;
-  path.AddRect(skity::Rect::MakeXYWH(x + pos * w - kr - 5, cy - kr - 5,
-                                     kr * 2 + 5 + 5, kr * 2 + 5 + 5 + 3));
-  path.AddCircle(x + pos * w, cy, kr, skity::Path::Direction::kCCW);
+  skity::PathBuilder path_builder;
+  path_builder.AddRect(skity::Rect::MakeXYWH(
+      x + pos * w - kr - 5, cy - kr - 5, kr * 2 + 5 + 5, kr * 2 + 5 + 5 + 3));
+  path_builder.AddCircle(x + pos * w, cy, kr, skity::Path::Direction::kCCW);
+  skity::Path path = path_builder.Detach();
   canvas->DrawPath(path, paint);
 
-  skity::Path knob;
-  knob.AddCircle(x + pos * w, cy, kr - 1);
+  skity::PathBuilder knob_builder;
+  knob_builder.AddCircle(x + pos * w, cy, kr - 1);
+  skity::Path knob = knob_builder.Detach();
   paint.SetShader(nullptr);
   paint.SetColor(skity::ColorSetARGB(255, 40, 43, 48));
   canvas->DrawPath(knob, paint);
@@ -1031,8 +1049,9 @@ void draw_slider(skity::Canvas* canvas, float pos, float x, float y, float w,
   }
   canvas->DrawPath(knob, paint);
 
-  skity::Path circle;
-  circle.AddCircle(x + pos * w, cy, kr - 0.5f);
+  skity::PathBuilder circle_builder;
+  circle_builder.AddCircle(x + pos * w, cy, kr - 0.5f);
+  skity::Path circle = circle_builder.Detach();
   paint.SetShader(nullptr);
   paint.SetColor(skity::ColorSetARGB(92, 0, 0, 0));
   paint.SetStyle(skity::Paint::kStroke_Style);
@@ -1092,11 +1111,12 @@ void draw_thumbnails(skity::Canvas* canvas, skity::GPUContext* gpu_context,
   // window
   paint.SetStyle(skity::Paint::kFill_Style);
   paint.SetColor(skity::ColorSetARGB(255, 200, 200, 200));
-  skity::Path path;
-  path.MoveTo(x - 10, y + arry);
-  path.LineTo(x + 1.f, y + arry - 11.f);
-  path.LineTo(x + 1.f, y + arry + 11.f);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(x - 10, y + arry);
+  path_builder.LineTo(x + 1.f, y + arry - 11.f);
+  path_builder.LineTo(x + 1.f, y + arry + 11.f);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
   canvas->DrawPath(path, paint);
   rect.SetXYWH(x, y, w, h);
   canvas->DrawRRect(
@@ -1217,8 +1237,9 @@ void draw_spinner(skity::Canvas* canvas, float cx, float cy, float r, float t) {
   float ax, ay, bx, by;
   float cr = (r0 + r1) * 0.5f;
 
-  skity::Path path;
-  path.AddCircle(cx, cy, cr);
+  skity::PathBuilder path_builder;
+  path_builder.AddCircle(cx, cy, cr);
+  skity::Path path = path_builder.Detach();
 
   skity::Paint paint;
   paint.SetAntiAlias(true);

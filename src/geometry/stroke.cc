@@ -5,6 +5,7 @@
 // LICENSE file in the root directory of this source tree.
 
 #include <skity/geometry/stroke.hpp>
+#include <skity/graphic/path_builder.hpp>
 
 #include "src/geometry/conic.hpp"
 #include "src/geometry/cubic.hpp"
@@ -152,20 +153,20 @@ bool sharp_angle(const Point quad[3]) {
 
 // Cap and Join
 namespace {
-typedef void (*CapProc)(Path* path, const Point& pivot, const Vector& normal,
-                        const Point& stop);
+typedef void (*CapProc)(PathBuilder* path, const Point& pivot,
+                        const Vector& normal, const Point& stop);
 
-typedef void (*JoinProc)(Path* outer, Path* inner,
+typedef void (*JoinProc)(PathBuilder* outer, PathBuilder* inner,
                          const Vector& beforeUnitNormal, const Point& pivot,
                          const Vector& afterUnitNormal, float radius,
                          float miter_limit);
 
-void ButtCapper(Path* path, const Point& pivot, const Vector& normal,
+void ButtCapper(PathBuilder* path, const Point& pivot, const Vector& normal,
                 const Point& stop) {
   path->LineTo(stop.x, stop.y);
 }
 
-void SquareCapper(Path* path, const Point& pivot, const Vector& normal,
+void SquareCapper(PathBuilder* path, const Point& pivot, const Vector& normal,
                   const Point& stop) {
   Point parallel;
   PointRotateCW(normal, &parallel);
@@ -176,15 +177,16 @@ void SquareCapper(Path* path, const Point& pivot, const Vector& normal,
   path->LineTo(stop.x, stop.y);
 }
 
-void RoundCapper(Path* path, const Point& pivot, const Vector& normal,
+void RoundCapper(PathBuilder* path, const Point& pivot, const Vector& normal,
                  const Point& stop) {
   Point parallel;
   PointRotateCW(normal, &parallel);
 
   Point projectedCenter = pivot + parallel;
 
-  path->ConicTo(projectedCenter + normal, projectedCenter, FloatRoot2Over2);
-  path->ConicTo(projectedCenter - normal, stop, FloatRoot2Over2);
+  path->ConicTo(Vec2{projectedCenter + normal}, Vec2{projectedCenter},
+                FloatRoot2Over2);
+  path->ConicTo(Vec2{projectedCenter - normal}, Vec2{stop}, FloatRoot2Over2);
 }
 
 CapProc CapFactory(Paint::Cap cap) {
@@ -197,14 +199,16 @@ bool is_clockwise(const Vector& before, const Vector& after) {
   return before.x * after.y > before.y * after.x;
 }
 
-void handle_inner_join(Path* inner, const Point& pivot, const Vector& after) {
+void handle_inner_join(PathBuilder* inner, const Point& pivot,
+                       const Vector& after) {
   inner->LineTo(pivot.x, pivot.y);
   inner->LineTo(pivot.x - after.x, pivot.y - after.y);
 }
 
-void BevelJoiner(Path* outer, Path* inner, const Vector& beforeUnitNormal,
-                 const Point& pivot, const Vector& afterUnitNormal,
-                 float radius, float miter_limit) {
+void BevelJoiner(PathBuilder* outer, PathBuilder* inner,
+                 const Vector& beforeUnitNormal, const Point& pivot,
+                 const Vector& afterUnitNormal, float radius,
+                 float miter_limit) {
   Vector after;
   PointScale(afterUnitNormal, radius, &after);
 
@@ -235,9 +239,10 @@ AngleType Dot2AngleType(float dot) {
   }
 }
 
-void RoundJoiner(Path* outer, Path* inner, const Vector& beforeUnitNormal,
-                 const Point& pivot, const Vector& afterUnitNormal,
-                 float radius, float miter_limit) {
+void RoundJoiner(PathBuilder* outer, PathBuilder* inner,
+                 const Vector& beforeUnitNormal, const Point& pivot,
+                 const Vector& afterUnitNormal, float radius,
+                 float miter_limit) {
   float dotProd = Vec2{beforeUnitNormal}.Dot(Vec2{afterUnitNormal});
   AngleType angleType = Dot2AngleType(dotProd);
 
@@ -264,16 +269,18 @@ void RoundJoiner(Path* outer, Path* inner, const Vector& beforeUnitNormal,
       Conic::BuildUnitArc(Vec2{before}, Vec2{after}, dir, &matrix, conics);
   if (count > 0) {
     for (int i = 0; i < count; ++i) {
-      outer->ConicTo(conics[i].pts[1], conics[i].pts[2], conics[i].w);
+      outer->ConicTo(Vec2{conics[i].pts[1]}, Vec2{conics[i].pts[2]},
+                     conics[i].w);
     }
     PointScale(after, radius, &after);
     handle_inner_join(inner, pivot, after);
   }
 }
 
-void MiterJoiner(Path* outer, Path* inner, const Vector& beforeUnitNormal,
-                 const Point& pivot, const Vector& afterUnitNormal,
-                 float radius, float miter_limit) {
+void MiterJoiner(PathBuilder* outer, PathBuilder* inner,
+                 const Vector& beforeUnitNormal, const Point& pivot,
+                 const Vector& afterUnitNormal, float radius,
+                 float miter_limit) {
   float dotProd = Vec2{beforeUnitNormal}.Dot(Vec2{afterUnitNormal});
   AngleType angleType = Dot2AngleType(dotProd);
   Vector before = beforeUnitNormal;
@@ -385,7 +392,7 @@ class PathStroker {
     this->FinishContour(false, isLine);
     // StrokePath preserves the destination's fill rule.
     outer_path_.SetFillType(dst->GetFillType());
-    dst->Swap(outer_path_);
+    outer_path_.DetachTo(dst);
   }
 
  private:
@@ -395,8 +402,8 @@ class PathStroker {
   float fInvResScale;
   float fInvResScaleSquared;
 
-  Path outer_path_;
-  Path inner_path_;
+  PathBuilder outer_path_;
+  PathBuilder inner_path_;
   Vector fFirstNormal, fPrevNormal, fFirstUnitNormal, fPrevUnitNormal;
   Point fFirstPt, fPrevPt;  // on original path
   Point fFirstOuterPt;
@@ -543,7 +550,8 @@ bool PathStroker::QuadStroke(const Point quad[3], QuadConstruct* quadPts) {
   ResultType resultType = this->CompareQuadQuad(quad, quadPts);
   if (kQuad_ResultType == resultType) {
     const Point* stroke = quadPts->fQuad;
-    Path* path = fStrokeType == kOuter_StrokeType ? &outer_path_ : &inner_path_;
+    PathBuilder* path =
+        fStrokeType == kOuter_StrokeType ? &outer_path_ : &inner_path_;
     path->QuadTo(stroke[1].x, stroke[1].y, stroke[2].x, stroke[2].y);
     return true;
   }
@@ -742,23 +750,13 @@ void PathStroker::FinishContour(bool close, bool isLine) {
                  fFirstUnitNormal, radius_, miter_limit_);
       outer_path_.Close();
 
-      bool fCanIgnoreCenter = false;
-      if (fCanIgnoreCenter) {
-        // If we can ignore the center just make sure the larger of the two
-        // paths is preserved and don't add the smaller one.
-        if (inner_path_.GetBounds().Contains(outer_path_.GetBounds())) {
-          inner_path_.Swap(outer_path_);
-        }
-      } else {
-        // now add fInner as its own contour
-        inner_path_.GetLastPt2D(&pt);
-        outer_path_.MoveTo(pt.x, pt.y);
-        outer_path_.ReversePathTo(inner_path_);
-        outer_path_.Close();
-      }
+      inner_path_.GetLastPt(&pt);
+      outer_path_.MoveTo(pt);
+      outer_path_.ReversePathTo(inner_path_);
+      outer_path_.Close();
     } else {  // add caps to start and end
       // cap the end
-      inner_path_.GetLastPt2D(&pt);
+      inner_path_.GetLastPt(&pt);
       cap_proc_(&outer_path_, fPrevPt, fPrevNormal, ToPoint(pt));
       outer_path_.ReversePathTo(inner_path_);
       // cap the start
@@ -903,31 +901,31 @@ DONE:
   stroker.Done(dst, last_verb == Path::Verb::kLine);
 }
 
-[[maybe_unused]] static void mark_point(Path* dst, Point point) {
-  dst->LineTo(point.x + 50, point.y);
-  dst->LineTo(point.x, point.y);
-  dst->LineTo(point.x, point.y + 50);
-  dst->LineTo(point.x, point.y);
-}
-
 void Stroke::QuadPath(const Path& src, Path* dst) const {
   QuadPath(src, dst, false);
 }
 
 void Stroke::QuadPath(const Path& src, Path* dst, bool keep_cubic) const {
-  Path::Iter iter{src, false};
+  const Path* input = &src;
+  Path saved;
+  if (dst == &src) {
+    saved = src;
+    input = &saved;
+  }
+  PathBuilder builder(std::move(*dst));
+  Path::Iter iter{*input, false};
   std::array<Vec2, 4> pts = {};
   for (;;) {
     Path::Verb verb = iter.Next(pts.data());
     switch (verb) {
       case Path::Verb::kMove:
-        dst->MoveTo(pts[0].x, pts[0].y);
+        builder.MoveTo(pts[0].x, pts[0].y);
         break;
       case Path::Verb::kLine:
-        dst->LineTo(pts[1].x, pts[1].y);
+        builder.LineTo(pts[1].x, pts[1].y);
         break;
       case Path::Verb::kQuad:
-        dst->QuadTo(pts[1].x, pts[1].y, pts[2].x, pts[2].y);
+        builder.QuadTo(pts[1].x, pts[1].y, pts[2].x, pts[2].y);
         break;
       case Path::Verb::kConic: {
         Conic conic;
@@ -936,26 +934,25 @@ void Stroke::QuadPath(const Path& src, Path* dst, bool keep_cubic) const {
         constexpr auto kQuadCount = 1 + (2 * (1 << kPow2));  // 5
         Point points[kQuadCount];
         conic.ChopIntoQuadsPOW2(points, kPow2);
-        dst->QuadTo(points[1], points[2]);
-        // mark_point(dst, points[2]);
-        dst->QuadTo(points[3], points[4]);
-        // mark_point(dst, points[4]);
+        builder.QuadTo(Vec2{points[1]}, Vec2{points[2]});
+
+        builder.QuadTo(Vec2{points[3]}, Vec2{points[4]});
+
       } break;
       case Path::Verb::kCubic: {
         if (keep_cubic) {
-          dst->CubicTo(pts[1].x, pts[1].y, pts[2].x, pts[2].y, pts[3].x,
-                       pts[3].y);
+          builder.CubicTo(pts[1].x, pts[1].y, pts[2].x, pts[2].y, pts[3].x,
+                          pts[3].y);
         } else {
           Cubic cubic(pts[0], pts[1], pts[2], pts[3]);
           std::vector<std::array<Vec2, 3>> quads = cubic.ToQuads();
           for (auto& points : quads) {
-            // mark_point(dst, points[0]);
-            dst->QuadTo(points[1].x, points[1].y, points[2].x, points[2].y);
+            builder.QuadTo(points[1].x, points[1].y, points[2].x, points[2].y);
           }
         }
       } break;
       case Path::Verb::kClose:
-        dst->Close();
+        builder.Close();
         break;
       case Path::Verb::kDone:
         goto DONE;
@@ -963,7 +960,7 @@ void Stroke::QuadPath(const Path& src, Path* dst, bool keep_cubic) const {
     }
   }
 DONE:
-  return;
+  builder.DetachTo(dst);
 }
 
 }  // namespace skity

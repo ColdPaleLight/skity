@@ -7,6 +7,7 @@
 #include <chrono>
 #include <glm/gtc/matrix_transform.hpp>
 #include <skity/geometry/quaternion.hpp>
+#include <skity/graphic/path_builder.hpp>
 #include <skity/skity.hpp>
 #include <thread>
 
@@ -37,13 +38,14 @@ void draw_even_odd_fill(skity::Canvas* canvas) {
   paint.SetStyle(skity::Paint::kFill_Style);
   paint.SetColor(skity::ColorSetA(skity::Color_RED, 64));
 
-  skity::Path path;
-  path.MoveTo(100, 10);
-  path.LineTo(40, 180);
-  path.LineTo(190, 60);
-  path.LineTo(10, 60);
-  path.LineTo(160, 180);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(100, 10);
+  path_builder.LineTo(40, 180);
+  path_builder.LineTo(190, 60);
+  path_builder.LineTo(10, 60);
+  path_builder.LineTo(160, 180);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
 
   static float t = 0.f;
 
@@ -112,7 +114,7 @@ void draw_even_odd_fill(skity::Canvas* canvas) {
            orth * preM;
   canvas->Concat(reinterpret_cast<skity::Matrix&>(result));
 
-  path.SetFillType(skity::Path::PathFillType::kEvenOdd);
+  path = path.WithFillType(skity::Path::PathFillType::kEvenOdd);
   canvas->DrawPath(path, paint);
 
   canvas->Restore();

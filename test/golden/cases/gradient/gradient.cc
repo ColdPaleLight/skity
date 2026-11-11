@@ -6,6 +6,7 @@
 
 #include <filesystem>
 #include <skity/graphic/bitmap.hpp>
+#include <skity/graphic/path_builder.hpp>
 #include <skity/recorder/picture_recorder.hpp>
 #include <skity/skity.hpp>
 
@@ -51,11 +52,12 @@ bool CompareGradientGolden(skity::PictureRecorder& recorder, uint32_t width,
 }
 
 skity::Path MakeTestTriangle() {
-  skity::Path path;
-  path.MoveTo(0.f, 96.f);
-  path.LineTo(48.f, 0.f);
-  path.LineTo(96.f, 96.f);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(0.f, 96.f);
+  path_builder.LineTo(48.f, 0.f);
+  path_builder.LineTo(96.f, 96.f);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
   return path;
 }
 
@@ -621,11 +623,12 @@ TEST(GradientGolden, FallbackPathAndRRect) {
               }
               const float x = col * 160.f;
               const float y = row * 80.f;
-              skity::Path path;
-              path.MoveTo(x + 8.f, y + 56.f);
-              path.LineTo(x + 36.f, y + 8.f);
-              path.LineTo(x + 64.f, y + 56.f);
-              path.Close();
+              skity::PathBuilder path_builder;
+              path_builder.MoveTo(x + 8.f, y + 56.f);
+              path_builder.LineTo(x + 36.f, y + 8.f);
+              path_builder.LineTo(x + 64.f, y + 56.f);
+              path_builder.Close();
+              skity::Path path = path_builder.Detach();
               canvas->DrawPath(path, paint);
               canvas->DrawRRect(
                   skity::RRect::MakeRectXY(

@@ -7,6 +7,8 @@
 #include <freetype/ftoutln.h>
 #include <freetype/ftsizes.h>
 
+#include <skity/graphic/path_builder.hpp>
+
 #include "src/base/fixed_types.hpp"
 #include "src/utils/function_wrapper.hpp"
 
@@ -15,7 +17,7 @@ namespace skity {
 namespace {
 
 struct FTOutlineExtractInfo {
-  Path* path = nullptr;
+  PathBuilder* path = nullptr;
   FT_Face ft_face;
   //  float screen_width = 0.f;
   //  float screen_height = 0.f;
@@ -67,19 +69,20 @@ bool PathFreeType::GenerateGlyphPath(FT_Face face, Path* path) {
   callback.shift = 0;
   callback.delta = 0;
 
+  PathBuilder builder(std::move(*path));
   FTOutlineExtractInfo outline_info;
-  outline_info.path = path;
+  outline_info.path = &builder;
   outline_info.ft_face = face;
 
   auto error =
       FT_Outline_Decompose(&face->glyph->outline, &callback, &outline_info);
 
   if (error) {
-    path->Reset();
+    *path = {};
     return false;
   }
 
-  path->Close();
+  builder.Close().DetachTo(path);
   return true;
 }
 
@@ -127,12 +130,12 @@ bool PathFreeType::GenerateFacePath(FT_Face face, GlyphID glyph_id,
 
     err = FT_Load_Glyph(face, glyph_id, flags);
     if (err != 0) {
-      path->Reset();
+      *path = {};
       return false;
     }
 
     if (!GenerateGlyphPath(face, path)) {
-      path->Reset();
+      *path = {};
       return false;
     }
 

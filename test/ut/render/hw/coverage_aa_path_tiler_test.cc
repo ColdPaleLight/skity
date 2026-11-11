@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <skity/graphic/path_builder.hpp>
 
 #include "src/render/hw/coverage/coverage_aa_tiler.hpp"
 
@@ -142,32 +143,35 @@ skity::CoverageAATiledPath ResolveBackdrops(
 }
 
 skity::Path MakeCoverageAASquareCW() {
-  skity::Path path;
-  path.MoveTo(16, 16);
-  path.LineTo(48, 16);
-  path.LineTo(48, 48);
-  path.LineTo(16, 48);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(16, 16);
+  path_builder.LineTo(48, 16);
+  path_builder.LineTo(48, 48);
+  path_builder.LineTo(16, 48);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
   return path;
 }
 
 skity::Path MakeCoverageAAInsetSquareCW() {
-  skity::Path path;
-  path.MoveTo(20, 20);
-  path.LineTo(44, 20);
-  path.LineTo(44, 44);
-  path.LineTo(20, 44);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(20, 20);
+  path_builder.LineTo(44, 20);
+  path_builder.LineTo(44, 44);
+  path_builder.LineTo(20, 44);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
   return path;
 }
 
 skity::Path MakeCoverageAALocalSquareCW() {
-  skity::Path path;
-  path.MoveTo(0, 0);
-  path.LineTo(32, 0);
-  path.LineTo(32, 32);
-  path.LineTo(0, 32);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(0, 0);
+  path_builder.LineTo(32, 0);
+  path_builder.LineTo(32, 32);
+  path_builder.LineTo(0, 32);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
   return path;
 }
 
@@ -471,11 +475,12 @@ TEST(CoverageAAPathTiler, Tile_AppliesMatrixBeforeTiling) {
 }
 
 TEST(CoverageAAPathTiler, Tile_UsesTransformedPathBounds) {
-  skity::Path path;
-  path.MoveTo(0, 0);
-  path.LineTo(32, 0);
-  path.LineTo(0, 32);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(0, 0);
+  path_builder.LineTo(32, 0);
+  path_builder.LineTo(0, 32);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
   TestTiler tiler;
 
   tiler.Tile(path, skity::Matrix::RotateDeg(45, {0, 0}));
@@ -485,12 +490,13 @@ TEST(CoverageAAPathTiler, Tile_UsesTransformedPathBounds) {
 }
 
 TEST(CoverageAAPathTiler, Tile_ScissorLimitsBoundsAndPreservesBackdrop) {
-  skity::Path path;
-  path.MoveTo(-160, -160);
-  path.LineTo(160, -160);
-  path.LineTo(160, 160);
-  path.LineTo(-160, 160);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(-160, -160);
+  path_builder.LineTo(160, -160);
+  path_builder.LineTo(160, 160);
+  path_builder.LineTo(-160, 160);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
   const skity::Rect scissor = skity::Rect::MakeLTRB(17, 17, 31, 31);
   TestTiler tiler;
 
@@ -512,8 +518,9 @@ TEST(CoverageAAPathTiler, Tile_EmptyPathDoesNotAppendFrameData) {
   size_t tile_count = tiler.tiles.size();
   size_t line_count = tiler.lines.size();
   size_t line_range_count = tiler.line_range_counts.size();
-  skity::Path empty_path;
-  empty_path.SetFillType(skity::Path::PathFillType::kEvenOdd);
+  skity::PathBuilder empty_path_builder;
+  empty_path_builder.SetFillType(skity::Path::PathFillType::kEvenOdd);
+  skity::Path empty_path = empty_path_builder.Detach();
 
   auto tiled_path = tiler.Tile(empty_path);
 

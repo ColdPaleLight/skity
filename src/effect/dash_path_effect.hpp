@@ -21,7 +21,8 @@ class DashPathEffect : public PathEffect {
   void FlattenToBuffer(WriteBuffer &buffer) const override;
 
  protected:
-  bool OnFilterPath(Path *, const Path &, bool, Paint const &) const override;
+  bool OnFilterPath(PathBuilder *, const Path &, bool,
+                    Paint const &) const override;
 
   DashType OnAsADash(DashInfo *) const override;
 

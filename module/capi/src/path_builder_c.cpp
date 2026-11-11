@@ -10,7 +10,7 @@
 #include <skity/graphic/path_builder.hpp>
 #include <utility>
 
-#include "handle.hpp"
+#include "path_handle.hpp"
 
 namespace {
 
@@ -21,11 +21,11 @@ skity::PathBuilder* builder_of(skity_path_builder handle) {
 }
 
 skity::Path* path_of(skity_path handle, bool require_owning = false) {
-  auto* w = skity::capi::resolve<skity_path_s>(handle, SKITY_OBJECT_TYPE_PATH);
+  auto* w = skity::capi::resolve_path(handle);
   if (!w || (require_owning && !(w->header.flags & SKITY_HANDLE_OWNING))) {
     return nullptr;
   }
-  return w->impl.get();
+  return skity::capi::read_path(w);
 }
 
 bool valid_dir(skity_path_direction dir) {
@@ -43,12 +43,6 @@ bool valid_mode(skity_path_add_mode mode) {
 
 skity::Rect to_rect(const skity_rect& rect) {
   return {rect.left, rect.top, rect.right, rect.bottom};
-}
-
-skity::Matrix to_matrix(const skity_matrix& matrix) {
-  const float* m = matrix.m;
-  return {m[0], m[1], m[2],  m[3],  m[4],  m[5],  m[6],  m[7],
-          m[8], m[9], m[10], m[11], m[12], m[13], m[14], m[15]};
 }
 
 skity::RRect to_rrect(const skity_rect& rect, const skity_vec2 radii[4]) {
@@ -286,13 +280,14 @@ void skity_path_builder_add_path_matrix(skity_path_builder builder,
   auto* b = builder_of(builder);
   auto* p = path_of(source);
   if (!b || !p || !matrix || !valid_mode(mode)) return;
-  b->AddPath(*p, to_matrix(*matrix), static_cast<skity::Path::AddMode>(mode));
+  b->AddPath(*p, skity::capi::path_matrix(*matrix),
+             static_cast<skity::Path::AddMode>(mode));
 }
 
 void skity_path_builder_transform(skity_path_builder builder,
                                   const skity_matrix* matrix) {
   auto* b = builder_of(builder);
-  if (b && matrix) b->Transform(to_matrix(*matrix));
+  if (b && matrix) b->Transform(skity::capi::path_matrix(*matrix));
 }
 
 uint32_t skity_path_builder_is_empty(skity_path_builder builder) {

@@ -19,9 +19,7 @@ PathMeasure::~PathMeasure() = default;
 
 void PathMeasure::SetPath(const Path* path, bool forceClosed) {
   if (!iter_) {
-    skity::Path tmp{};
-    iter_ = std::make_unique<ContourMeasureIter>(path != nullptr ? *path : tmp,
-                                                 forceClosed, 1.f);
+    iter_ = std::make_unique<ContourMeasureIter>();
   }
 
   iter_->reset(path ? *path : Path{}, forceClosed);
@@ -58,12 +56,21 @@ bool PathMeasure::GetPosTan2D(float distance, Vec2* position, Vec2* tangent) {
 
 bool PathMeasure::GetSegment(float startD, float stopD, Path* dst,
                              bool startWithMoveTo) {
-  return contour_ && contour_->getSegment(startD, stopD, dst, startWithMoveTo);
+  if (!dst || !contour_) {
+    return false;
+  }
+  PathBuilder builder(*dst);
+  if (!GetSegmentToBuilder(startD, stopD, &builder, startWithMoveTo)) {
+    return false;
+  }
+  builder.DetachTo(dst);
+  return true;
 }
 
 bool PathMeasure::GetSegmentToBuilder(float startD, float stopD,
                                       PathBuilder* dst, bool startWithMoveTo) {
-  return dst && GetSegment(startD, stopD, &dst->path_, startWithMoveTo);
+  return dst && contour_ &&
+         contour_->getSegment(startD, stopD, dst, startWithMoveTo);
 }
 
 bool PathMeasure::IsClosed() { return contour_ && contour_->isClosed(); }

@@ -145,8 +145,8 @@ void Canvas::ClipRRect(const RRect &rrect, ClipOp op) {
 void Canvas::OnClipRect(const Rect &rect, ClipOp op) {
   PathBuilder builder;
   builder.AddRect(rect);
+  PathPriv::SetConvexityType(builder, Path::ConvexityType::kConvex);
   Path path = builder.Detach();
-  path.SetConvexityType(Path::ConvexityType::kConvex);
 
   this->OnClipPath(path, op);
 }
@@ -154,8 +154,8 @@ void Canvas::OnClipRect(const Rect &rect, ClipOp op) {
 void Canvas::OnClipRRect(const RRect &rrect, ClipOp op) {
   PathBuilder builder;
   builder.AddRRect(rrect);
+  PathPriv::SetConvexityType(builder, Path::ConvexityType::kConvex);
   Path path = builder.Detach();
-  path.SetConvexityType(Path::ConvexityType::kConvex);
   this->OnClipPath(path, op);
 }
 
@@ -439,8 +439,8 @@ void Canvas::OnDrawOval(Rect const &oval, Paint const &paint) {
 void Canvas::OnDrawRRect(RRect const &rrect, Paint const &paint) {
   PathBuilder builder;
   builder.AddRRect(rrect);
+  PathPriv::SetConvexityType(builder, Path::ConvexityType::kConvex);
   Path path = builder.Detach();
-  path.SetConvexityType(Path::ConvexityType::kConvex);
 
   this->DrawPath(path, paint);
 }

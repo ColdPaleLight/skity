@@ -13,20 +13,26 @@
 #include "src/geometry/math.hpp"
 
 TEST(PathMeasure, MixedContoursKeepBoundariesAndConicWeights) {
-  std::array<skity::Path, 4> contours;
-  contours[0].MoveTo(2, 3).LineTo(5, 7);
-  contours[1].MoveTo(10, 0).QuadTo(20, 30, 40, 0).Close();
-  contours[2].MoveTo(50, 0).ConicTo(60, 30, 70, 0, 0.5f).Close();
-  contours[3]
-      .MoveTo(80, 0)
-      .ConicTo(90, 30, 100, 0, 0.75f)
-      .CubicTo(110, -20, 120, 20, 130, 0);
-  skity::Path path;
-  path.MoveTo(0, 0).LineTo(0, 0).Close();
+  const std::array<skity::Path, 4> contours = {
+      skity::PathBuilder().MoveTo(2, 3).LineTo(5, 7).Detach(),
+      skity::PathBuilder().MoveTo(10, 0).QuadTo(20, 30, 40, 0).Close().Detach(),
+      skity::PathBuilder()
+          .MoveTo(50, 0)
+          .ConicTo(60, 30, 70, 0, 0.5f)
+          .Close()
+          .Detach(),
+      skity::PathBuilder()
+          .MoveTo(80, 0)
+          .ConicTo(90, 30, 100, 0, 0.75f)
+          .CubicTo(110, -20, 120, 20, 130, 0)
+          .Detach(),
+  };
+  skity::PathBuilder builder;
+  builder.MoveTo(0, 0).LineTo(0, 0).Close();
   for (const auto& contour : contours) {
-    path.AddPath(contour);
+    builder.AddPath(contour);
   }
-  path.MoveTo(200, 200);
+  const skity::Path path = builder.MoveTo(200, 200).Detach();
 
   for (bool force_close : {false, true}) {
     skity::PathMeasure measure(path, force_close);
@@ -51,13 +57,21 @@ TEST(PathMeasure, MixedContoursKeepBoundariesAndConicWeights) {
 
 TEST(PathMeasure, AppendsSegmentsToBuilder) {
   skity::Path source;
-  source.MoveTo(0, 0).ConicTo(10, 30, 20, 0, 0.5f).LineTo(50, 0).Close();
+  source = skity::PathBuilder(std::move(source))
+               .MoveTo(0, 0)
+               .ConicTo(10, 30, 20, 0, 0.5f)
+               .LineTo(50, 0)
+               .Close()
+               .Detach();
   skity::PathMeasure measure(source, false);
   const float length = measure.GetLength();
 
   skity::Path expected;
-  expected.MoveTo(60, 10).LineTo(80, 10);
-  expected.SetFillType(skity::Path::PathFillType::kEvenOdd);
+  expected = skity::PathBuilder(std::move(expected))
+                 .MoveTo(60, 10)
+                 .LineTo(80, 10)
+                 .Detach();
+  expected = expected.WithFillType(skity::Path::PathFillType::kEvenOdd);
   skity::PathBuilder builder(expected);
   auto append = [&](float start, float stop, bool move_to) {
     EXPECT_TRUE(measure.GetSegment(start, stop, &expected, move_to));
@@ -74,7 +88,10 @@ TEST(PathMeasure, AppendsSegmentsToBuilder) {
 
 TEST(PathMeasure, DiscreteEffectKeepsSeededOffsets) {
   skity::Path source;
-  source.MoveTo(0, 10).LineTo(30, 10);
+  source = skity::PathBuilder(std::move(source))
+               .MoveTo(0, 10)
+               .LineTo(30, 10)
+               .Detach();
   auto effect = skity::PathEffect::MakeDiscretePathEffect(10, 2, 30);
   skity::Path result;
   ASSERT_TRUE(effect->FilterPath(&result, source, true, skity::Paint{}));
@@ -95,9 +112,12 @@ static void test_small_segment1() {
       skity::Point{Float1, Float1, 0.f, 1.f},
   };
 
-  path.MoveTo(pts[0]);
+  path =
+      skity::PathBuilder(std::move(path)).MoveTo(skity::Vec2{pts[0]}).Detach();
   for (size_t i = 1; i < pts.size(); i++) {
-    path.LineTo(pts[i]);
+    path = skity::PathBuilder(std::move(path))
+               .LineTo(skity::Vec2{pts[i]})
+               .Detach();
   }
   skity::PathMeasure meas{path, false};
   /*  this would assert (before a fix) because we added a segment with
@@ -126,9 +146,12 @@ static void test_small_segment2() {
       skity::Point{0, 0, 0, 1},
   };
 
-  path.MoveTo(pts[0]);
+  path =
+      skity::PathBuilder(std::move(path)).MoveTo(skity::Vec2{pts[0]}).Detach();
   for (size_t i = 1; i < pts.size(); i += 2) {
-    path.QuadTo(pts[i], pts[i + 1]);
+    path = skity::PathBuilder(std::move(path))
+               .QuadTo(skity::Vec2{pts[i]}, skity::Vec2{pts[i + 1]})
+               .Detach();
   }
 
   skity::PathMeasure meas{path, false};
@@ -147,9 +170,9 @@ static void test_small_segment3() {
       skity::Point{10, 10, 0, 1},
   };
 
-  path.MoveTo(pts[0]);
+  path = skity::PathBuilder(std::move(path)).MoveTo(skity::Vec2{pts[0]}).Detach();
   for (size_t i = 1; i < pts.size(); i += 3) {
-    path.CubicTo(pts[i], pts[i + 1], pts[i + 2]);
+    path = skity::PathBuilder(std::move(path)).CubicTo(pts[i], pts[i + 1], pts[i + 2]).Detach();
   }
 
   skity::PathMeasure meas{path, false};
@@ -160,35 +183,41 @@ static void test_small_segment3() {
 TEST(PathMeasure, getLength) {
   skity::Path path;
 
-  path.MoveTo(0, 0);
-  path.LineTo(Float1, 0);
-  path.LineTo(Float1, Float1);
-  path.LineTo(0, Float1);
+  path = skity::PathBuilder(std::move(path))
+             .MoveTo(0, 0)
+             .LineTo(Float1, 0)
+             .LineTo(Float1, Float1)
+             .LineTo(0, Float1)
+             .Detach();
 
   skity::PathMeasure meas{path, true};
   float length = meas.GetLength();
   EXPECT_EQ(length, 4 * Float1);
 
-  path.Reset();
-  path.MoveTo(0, 0);
-  path.LineTo(Float1 * 3, Float1 * 4);
+  path = {};
+  path = skity::PathBuilder(std::move(path))
+             .MoveTo(0, 0)
+             .LineTo(Float1 * 3, Float1 * 4)
+             .Detach();
   meas.SetPath(&path, false);
   length = meas.GetLength();
   EXPECT_EQ(length, Float1 * 5);
 
-  path.Reset();
-  path.AddCircle(0, 0, Float1);
+  path = {};
+  path = skity::PathBuilder(std::move(path)).AddCircle(0, 0, Float1).Detach();
   meas.SetPath(&path, true);
   length = meas.GetLength();
   // EXPECT_FLOAT_EQ(length, 2 * glm::pi<float>());
 
   // Test the behavior following a close not followed by a move.
-  path.Reset();
-  path.LineTo(Float1, 0);
-  path.LineTo(Float1, Float1);
-  path.LineTo(0, Float1);
-  path.Close();
-  path.LineTo(-Float1, 0);
+  path = {};
+  path = skity::PathBuilder(std::move(path))
+             .LineTo(Float1, 0)
+             .LineTo(Float1, Float1)
+             .LineTo(0, Float1)
+             .Close()
+             .LineTo(-Float1, 0)
+             .Detach();
   meas.SetPath(&path, false);
 
   length = meas.GetLength();
@@ -206,15 +235,18 @@ TEST(PathMeasure, getLength) {
   EXPECT_FLOAT_EQ(tangent.y, 0);
 
   // Test degenerate paths
-  path.Reset();
-  path.MoveTo(0, 0);
-  path.LineTo(0, 0);
-  path.LineTo(Float1, 0);
-  path.QuadTo(Float1, 0, Float1, 0);
-  path.QuadTo(Float1, Float1, Float1, Float1 * 2);
-  path.CubicTo(Float1, Float1 * 2, Float1, Float1 * 2, Float1, Float1 * 2);
-  path.CubicTo(Float1 * 2, Float1 * 2, Float1 * 3, Float1 * 2, Float1 * 4,
-               Float1 * 2);
+  path = {};
+  path =
+      skity::PathBuilder(std::move(path))
+          .MoveTo(0, 0)
+          .LineTo(0, 0)
+          .LineTo(Float1, 0)
+          .QuadTo(Float1, 0, Float1, 0)
+          .QuadTo(Float1, Float1, Float1, Float1 * 2)
+          .CubicTo(Float1, Float1 * 2, Float1, Float1 * 2, Float1, Float1 * 2)
+          .CubicTo(Float1 * 2, Float1 * 2, Float1 * 3, Float1 * 2, Float1 * 4,
+                   Float1 * 2)
+          .Detach();
 
   meas.SetPath(&path, false);
   length = meas.GetLength();
@@ -238,12 +270,14 @@ TEST(PathMeasure, getLength) {
   EXPECT_FLOAT_EQ(tangent.x, Float1);
   EXPECT_FLOAT_EQ(tangent.y, 0.f);
 
-  path.Reset();
-  path.MoveTo(0, 0);
-  path.LineTo(Float1, 0);
-  path.MoveTo(Float1, Float1);
-  path.MoveTo(Float1 * 2, Float1 * 2);
-  path.LineTo(Float1, Float1 * 2);
+  path = {};
+  path = skity::PathBuilder(std::move(path))
+             .MoveTo(0, 0)
+             .LineTo(Float1, 0)
+             .MoveTo(Float1, Float1)
+             .MoveTo(Float1 * 2, Float1 * 2)
+             .LineTo(Float1, Float1 * 2)
+             .Detach();
   meas.SetPath(&path, false);
 
   length = meas.GetLength();

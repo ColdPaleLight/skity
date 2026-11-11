@@ -5,6 +5,7 @@
 #include "case/basic/example.hpp"
 
 #include <cmath>
+#include <skity/graphic/path_builder.hpp>
 #include <skity/skity.hpp>
 
 namespace skity::example::basic {
@@ -38,12 +39,13 @@ static void draw_basic_example(skity::Canvas* canvas) {
 // same as https://fiddle.skia.org/c/@discrete_path
 static void draw_path_effect_example(skity::Canvas* canvas) {
   const float R = 115.2f, C = 128.f;
-  skity::Path path;
-  path.MoveTo(C + R, C);
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(C + R, C);
   for (int32_t i = 1; i < 8; i++) {
     float a = 2.6927937f * i;
-    path.LineTo(C + R * std::cos(a), C + R * std::sin(a));
+    path_builder.LineTo(C + R * std::cos(a), C + R * std::sin(a));
   }
+  skity::Path path = path_builder.Detach();
 
   skity::Paint paint;
   paint.SetPathEffect(skity::PathEffect::MakeDiscretePathEffect(10.f, 4.f));
@@ -55,18 +57,19 @@ static void draw_path_effect_example(skity::Canvas* canvas) {
 }
 
 static void draw_dash_start_example(skity::Canvas* canvas) {
-  skity::Path path;
-  path.MoveTo(199, 34);
-  path.LineTo(253, 143);
-  path.LineTo(374, 160);
-  path.LineTo(287, 244);
-  path.LineTo(307, 365);
-  path.LineTo(199, 309);
-  path.LineTo(97, 365);
-  path.LineTo(112, 245);
-  path.LineTo(26, 161);
-  path.LineTo(146, 143);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(199, 34);
+  path_builder.LineTo(253, 143);
+  path_builder.LineTo(374, 160);
+  path_builder.LineTo(287, 244);
+  path_builder.LineTo(307, 365);
+  path_builder.LineTo(199, 309);
+  path_builder.LineTo(97, 365);
+  path_builder.LineTo(112, 245);
+  path_builder.LineTo(26, 161);
+  path_builder.LineTo(146, 143);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
 
   skity::Paint paint;
   paint.SetStrokeWidth(8.f);
@@ -119,8 +122,9 @@ void draw_linear_gradient_example(skity::Canvas* canvas) {
     canvas->DrawRect(r, p);
   }
 
-  skity::Path circle;
-  circle.AddCircle(220, 350, 100);
+  skity::PathBuilder circle_builder;
+  circle_builder.AddCircle(220, 350, 100);
+  skity::Path circle = circle_builder.Detach();
   skity::Paint paint;
   paint.SetStyle(skity::Paint::kFill_Style);
   paint.SetAntiAlias(true);
@@ -198,13 +202,14 @@ void draw_even_odd_fill(skity::Canvas* canvas) {
   paint.SetColor(skity::ColorSetA(skity::Color_RED, 64));
   paint.SetAntiAlias(true);
 
-  skity::Path path;
-  path.MoveTo(100, 10);
-  path.LineTo(40, 180);
-  path.LineTo(190, 60);
-  path.LineTo(10, 60);
-  path.LineTo(160, 180);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(100, 10);
+  path_builder.LineTo(40, 180);
+  path_builder.LineTo(190, 60);
+  path_builder.LineTo(10, 60);
+  path_builder.LineTo(160, 180);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
 
   canvas->DrawPath(path, paint);
 
@@ -212,7 +217,7 @@ void draw_even_odd_fill(skity::Canvas* canvas) {
 
   canvas->Translate(0, 200);
 
-  path.SetFillType(skity::Path::PathFillType::kEvenOdd);
+  path = path.WithFillType(skity::Path::PathFillType::kEvenOdd);
   canvas->DrawPath(path, paint);
 
   canvas->Restore();

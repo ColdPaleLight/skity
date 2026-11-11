@@ -6,16 +6,18 @@
 
 #include <gtest/gtest.h>
 
+#include <skity/graphic/path_builder.hpp>
 #include <skity/skity.hpp>
 
 #include "skity/geometry/rrect.hpp"
 #include "skity/graphic/path.hpp"
 
 TEST(Shape, Path) {
-  skity::Path path;
-  path.MoveTo(0.0, 0.0);
-  path.LineTo(10.0, 10.0);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(0.0, 0.0);
+  path_builder.LineTo(10.0, 10.0);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
 
   skity::Shape shape(&path);
   EXPECT_TRUE(shape.IsPath());

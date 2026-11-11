@@ -115,7 +115,7 @@ else()
   # the handle protocol (common/handle.hpp) shared with the module-owned C
   # surfaces; see skity-capi-internal in the top-level CMakeLists.txt
   target_include_directories(skity-capi PRIVATE ${CMAKE_CURRENT_LIST_DIR}/common)
-  target_include_directories(skity-capi PRIVATE ${SKITY_ROOT}/include)
+  target_include_directories(skity-capi PRIVATE ${SKITY_ROOT} ${SKITY_ROOT}/include)
 
   target_link_libraries(skity-capi PUBLIC skity)
 

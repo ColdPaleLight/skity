@@ -33,8 +33,7 @@ struct ScopedPathAA {
   }
 };
 
-template <typename Target>
-void BuildShape(Target& path) {
+void BuildShape(PathBuilder& path) {
   path.MoveTo(12.5f, 18.5f);
   path.CubicTo(35, 2, 75, 110, 110, 20);
   path.ConicTo(100, 100, 20, 105, 0.7f);
@@ -55,8 +54,16 @@ void CompareBuilderRendering(bool coverage) {
   gpu->SetEnableSimpleShapePipeline(false);
   gpu->SetEnableGPUTessellation(false);
 
-  Path legacy;
-  BuildShape(legacy);
+  std::unique_ptr<skity_path_s, decltype(&skity_path_destroy)> legacy(
+      skity_path_create(), skity_path_destroy);
+  ASSERT_NE(legacy, nullptr);
+  skity_path_move_to(legacy.get(), 12.5f, 18.5f);
+  skity_path_cubic_to(legacy.get(), 35, 2, 75, 110, 110, 20);
+  skity_path_conic_to(legacy.get(), 100, 100, 20, 105, 0.7f);
+  skity_path_quad_to(legacy.get(), 35, 55, 12.5f, 18.5f);
+  skity_path_close(legacy.get());
+  skity_rect oval{40, 35, 65, 70};
+  skity_path_add_oval(legacy.get(), &oval, SKITY_PATH_DIRECTION_CCW);
   PathBuilder builder;
   BuildShape(builder);
   Path built = builder.Detach();
@@ -68,7 +75,6 @@ void CompareBuilderRendering(bool coverage) {
   skity_path_builder_conic_to(c_builder.get(), 100, 100, 20, 105, 0.7f);
   skity_path_builder_quad_to(c_builder.get(), 35, 55, 12.5f, 18.5f);
   skity_path_builder_close(c_builder.get());
-  skity_rect oval{40, 35, 65, 70};
   skity_path_builder_add_oval(c_builder.get(), &oval, SKITY_PATH_DIRECTION_CCW);
   std::unique_ptr<skity_path_s, decltype(&skity_path_destroy)> c_path(
       skity_path_builder_detach(c_builder.get()), skity_path_destroy);
@@ -78,8 +84,9 @@ void CompareBuilderRendering(bool coverage) {
   for (auto fill :
        {Path::PathFillType::kWinding, Path::PathFillType::kEvenOdd}) {
     for (auto style : {Paint::kFill_Style, Paint::kStroke_Style}) {
-      legacy.SetFillType(fill);
-      built.SetFillType(fill);
+      skity_path_set_fill_type(legacy.get(),
+                               static_cast<skity_path_fill_type>(fill));
+      built = built.WithFillType(fill);
       skity_path_set_fill_type(c_path.get(),
                                static_cast<skity_path_fill_type>(fill));
       Paint paint;
@@ -99,11 +106,13 @@ void CompareBuilderRendering(bool coverage) {
         return env->RenderToTexture(128, 128, [&](Canvas* canvas) {
           canvas->Clear(Color_TRANSPARENT);
           canvas->ClipRRect(RRect::MakeRectXY({4, 4, 124, 124}, 9, 11));
-          if (source < 2) {
-            canvas->DrawPath(source == 0 ? legacy : built, paint);
+          if (source == 1) {
+            canvas->DrawPath(built, paint);
           } else {
             auto c_canvas = skity_canvas_from_native(canvas);
-            skity_canvas_draw_path(c_canvas, c_path.get(), c_paint.get());
+            skity_canvas_draw_path(c_canvas,
+                                   source == 0 ? legacy.get() : c_path.get(),
+                                   c_paint.get());
             skity_canvas_destroy(c_canvas);
           }
         });

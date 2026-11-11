@@ -5,6 +5,7 @@
 #include <cassert>
 #include <skity/codec/codec.hpp>
 #include <skity/gpu/gpu_context.hpp>
+#include <skity/graphic/path_builder.hpp>
 #include <skity/recorder/picture_recorder.hpp>
 #include <skity/skity.hpp>
 
@@ -142,12 +143,13 @@ void draw_images(skity::Canvas* canvas, skity::GPUContext* gpu_context) {
 
   auto shader = skity::Shader::MakeShader(img);
 
-  skity::Path path;
-  path.MoveTo(133 / 2.0, 0);
-  path.LineTo(133, 50);
-  path.LineTo(133 / 2.0, 100);
-  path.LineTo(0, 50);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(133 / 2.0, 0);
+  path_builder.LineTo(133, 50);
+  path_builder.LineTo(133 / 2.0, 100);
+  path_builder.LineTo(0, 50);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
 
   Paint paint;
   paint.SetShader(shader);

@@ -5,6 +5,7 @@
 #include "src/effect/discrete_path_effect.hpp"
 
 #include <skity/geometry/point.hpp>
+#include <skity/graphic/path_builder.hpp>
 #include <skity/graphic/path_measure.hpp>
 
 #include "src/base/fixed_types.hpp"
@@ -74,8 +75,8 @@ void DiscretePathEffect::FlattenToBuffer(WriteBuffer& buffer) const {
   buffer.WriteUint32(seed_assist_);
 }
 
-bool DiscretePathEffect::OnFilterPath(Path* dst, Path const& src, bool stroke,
-                                      Paint const&) const {
+bool DiscretePathEffect::OnFilterPath(PathBuilder* dst, Path const& src,
+                                      bool stroke, Paint const&) const {
   bool do_fill = !stroke;
 
   PathMeasure meas{src, do_fill};
@@ -90,7 +91,7 @@ bool DiscretePathEffect::OnFilterPath(Path* dst, Path const& src, bool stroke,
   do {
     float length = meas.GetLength();
     if (seg_length_ * (2 + static_cast<int32_t>(do_fill)) > length) {
-      meas.GetSegment(0, length, dst, true);
+      meas.GetSegmentToBuilder(0, length, dst, true);
     } else {
       int32_t n = static_cast<int32_t>(std::round(length / seg_length_));
       constexpr int kMaxReasonableIterations = 100000;

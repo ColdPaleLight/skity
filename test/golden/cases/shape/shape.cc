@@ -6,6 +6,7 @@
 #include <skity/c/skity_parse_path.h>
 
 #include <filesystem>
+#include <skity/graphic/path_builder.hpp>
 #include <skity/recorder/picture_recorder.hpp>
 #include <skity/skity.hpp>
 
@@ -67,17 +68,18 @@ void TestCoverageAAConflationCorrectionTriangleRect(
   constexpr float kRight = 208.f;
   constexpr float kBottom = 208.f;
 
-  skity::Path path;
-  path.MoveTo(kLeft, kTop);
-  path.LineTo(kRight, kTop);
-  path.LineTo(kRight, kBottom);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(kLeft, kTop);
+  path_builder.LineTo(kRight, kTop);
+  path_builder.LineTo(kRight, kBottom);
+  path_builder.Close();
 
-  path.MoveTo(kLeft, kTop);
-  path.LineTo(kLeft, kBottom);
-  path.LineTo(kRight, kBottom);
-  path.Close();
-  path.SetFillType(fill_type);
+  path_builder.MoveTo(kLeft, kTop);
+  path_builder.LineTo(kLeft, kBottom);
+  path_builder.LineTo(kRight, kBottom);
+  path_builder.Close();
+  path_builder.SetFillType(fill_type);
+  skity::Path path = path_builder.Detach();
 
   canvas->DrawPath(path, paint);
 
@@ -104,28 +106,32 @@ void TestCoverageAAConflationCorrectionTriangleRect(
 namespace {
 
 skity::Path MakeCatHeadPath() {
-  skity::Path path;
+  skity::PathBuilder path_builder;
 
-  path.MoveTo(-16.539f, -28.104f);
-  path.CubicTo(-17.643f, -28.136f, -19.440f, -25.925f, -20.838f, -23.154f);
-  path.CubicTo(-23.157f, -18.556f, -24.958f, -12.417f, -24.958f, -12.417f);
-  path.LineTo(-25.989f, -8.666f);
-  path.CubicTo(-25.989f, -8.666f, -29.171f, -3.228f, -29.669f, 2.129f);
-  path.CubicTo(-30.198f, 7.815f, -29.179f, 14.140f, -23.104f, 19.063f);
-  path.CubicTo(-19.060f, 22.340f, -15.698f, 24.053f, -12.331f, 24.900f);
-  path.CubicTo(-10.336f, 25.402f, -5.067f, 26.521f, 0.176f, 26.520f);
-  path.CubicTo(5.541f, 26.519f, 10.549f, 25.387f, 12.295f, 24.923f);
-  path.CubicTo(15.501f, 24.071f, 18.384f, 23.172f, 22.896f, 19.708f);
-  path.CubicTo(28.624f, 15.310f, 30.589f, 8.891f, 29.999f, 3.034f);
-  path.CubicTo(29.410f, -2.811f, 26.000f, -8.681f, 26.000f, -8.681f);
-  path.CubicTo(26.000f, -8.681f, 25.538f, -10.640f, 25.313f, -11.417f);
-  path.CubicTo(24.568f, -13.992f, 22.830f, -19.497f, 21.003f, -23.073f);
-  path.CubicTo(19.513f, -25.990f, 17.713f, -28.039f, 16.292f, -28.167f);
-  path.CubicTo(14.086f, -28.365f, 7.708f, -21.062f, 7.708f, -21.062f);
-  path.CubicTo(7.708f, -21.062f, 3.205f, -22.021f, -0.146f, -22.021f);
-  path.CubicTo(-4.086f, -22.021f, -7.563f, -21.104f, -7.563f, -21.104f);
-  path.CubicTo(-7.563f, -21.104f, -13.170f, -28.007f, -16.539f, -28.104f);
-  path.Close();
+  path_builder.MoveTo(-16.539f, -28.104f);
+  path_builder.CubicTo(-17.643f, -28.136f, -19.440f, -25.925f, -20.838f,
+                       -23.154f);
+  path_builder.CubicTo(-23.157f, -18.556f, -24.958f, -12.417f, -24.958f,
+                       -12.417f);
+  path_builder.LineTo(-25.989f, -8.666f);
+  path_builder.CubicTo(-25.989f, -8.666f, -29.171f, -3.228f, -29.669f, 2.129f);
+  path_builder.CubicTo(-30.198f, 7.815f, -29.179f, 14.140f, -23.104f, 19.063f);
+  path_builder.CubicTo(-19.060f, 22.340f, -15.698f, 24.053f, -12.331f, 24.900f);
+  path_builder.CubicTo(-10.336f, 25.402f, -5.067f, 26.521f, 0.176f, 26.520f);
+  path_builder.CubicTo(5.541f, 26.519f, 10.549f, 25.387f, 12.295f, 24.923f);
+  path_builder.CubicTo(15.501f, 24.071f, 18.384f, 23.172f, 22.896f, 19.708f);
+  path_builder.CubicTo(28.624f, 15.310f, 30.589f, 8.891f, 29.999f, 3.034f);
+  path_builder.CubicTo(29.410f, -2.811f, 26.000f, -8.681f, 26.000f, -8.681f);
+  path_builder.CubicTo(26.000f, -8.681f, 25.538f, -10.640f, 25.313f, -11.417f);
+  path_builder.CubicTo(24.568f, -13.992f, 22.830f, -19.497f, 21.003f, -23.073f);
+  path_builder.CubicTo(19.513f, -25.990f, 17.713f, -28.039f, 16.292f, -28.167f);
+  path_builder.CubicTo(14.086f, -28.365f, 7.708f, -21.062f, 7.708f, -21.062f);
+  path_builder.CubicTo(7.708f, -21.062f, 3.205f, -22.021f, -0.146f, -22.021f);
+  path_builder.CubicTo(-4.086f, -22.021f, -7.563f, -21.104f, -7.563f, -21.104f);
+  path_builder.CubicTo(-7.563f, -21.104f, -13.170f, -28.007f, -16.539f,
+                       -28.104f);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
   return path;
 }
 
@@ -190,15 +196,16 @@ TEST(ShapeGolden, StrokeDepthOverlap) {
       EXPECT_TRUE(skity::testing::CompareGoldenTexture(
           384, 384, expected.c_str(), config, [](skity::Canvas* canvas) {
             canvas->Clear(skity::Color_WHITE);
-            skity::Path path;
+            skity::PathBuilder path_builder;
             // Repeated, self-intersecting contours exercise both triangle
             // overlap and overlap across tessellation instances.
             for (int i = 0; i < 2; ++i) {
-              path.MoveTo(12.f, 12.f);
-              path.LineTo(84.f, 60.f);
-              path.LineTo(12.f, 60.f);
-              path.CubicTo(84.f, 12.f, 84.f, 60.f, 12.f, 12.f);
+              path_builder.MoveTo(12.f, 12.f);
+              path_builder.LineTo(84.f, 60.f);
+              path_builder.LineTo(12.f, 60.f);
+              path_builder.CubicTo(84.f, 12.f, 84.f, 60.f, 12.f, 12.f);
             }
+            skity::Path path = path_builder.Detach();
             skity::Paint paint;
             paint.SetStyle(skity::Paint::kStroke_Style);
             paint.SetStrokeWidth(12.f);
@@ -237,12 +244,14 @@ TEST(ShapeGolden, StrokeDepthOverlap) {
             canvas->Translate(134.f, 258.f);
             canvas->SaveLayer(skity::Rect::MakeWH(112.f, 112.f), {});
             canvas->Save();
-            skity::Path clip;
-            clip.AddCircle(48.f, 40.f, 38.f);
+            skity::PathBuilder clip_builder;
+            clip_builder.AddCircle(48.f, 40.f, 38.f);
+            skity::Path clip = clip_builder.Detach();
             canvas->ClipPath(clip);
             canvas->Save();
-            skity::Path hole;
-            hole.AddCircle(48.f, 40.f, 12.f);
+            skity::PathBuilder hole_builder;
+            hole_builder.AddCircle(48.f, 40.f, 12.f);
+            skity::Path hole = hole_builder.Detach();
             canvas->ClipPath(hole, skity::Canvas::ClipOp::kDifference);
             paint.SetStyle(skity::Paint::kStroke_Style);
             canvas->DrawPath(path, paint);
@@ -288,12 +297,13 @@ TEST(ShapeGolden, StrokeMiterLimit) {
   paint.SetStrokeWidth(20.f);
   paint.SetStrokeMiter(1.415f);
 
-  skity::Path path;
-  path.MoveTo(0, 0);
-  path.LineTo(100, 0);
-  path.LineTo(100, 100);
-  path.LineTo(0, 100);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(0, 0);
+  path_builder.LineTo(100, 0);
+  path_builder.LineTo(100, 100);
+  path_builder.LineTo(0, 100);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
 
   canvas->Save();
   canvas->Translate(50.f, 50.f);
@@ -408,11 +418,12 @@ TEST(ShapeGolden, ScaledTinyStrokeWidth) {
   paint.SetStrokeWidth(0.08f);
   paint.SetStrokeCap(skity::Paint::kButt_Cap);
 
-  skity::Path path;
-  path.MoveTo(0.f, 0.f);
-  path.LineTo(1.f, 0.f);
-  path.LineTo(0.5f, 0.7f);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(0.f, 0.f);
+  path_builder.LineTo(1.f, 0.f);
+  path_builder.LineTo(0.5f, 0.7f);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
 
   canvas->Save();
   canvas->Translate(40.f, 25.f);
@@ -482,7 +493,7 @@ TEST(ShapeGolden, StrokeJoinAndCap) {
   paint.SetStrokeCap(skity::Paint::kSquare_Cap);
   paint.SetStrokeJoin(skity::Paint::kMiter_Join);
 
-  skity::Path polyline;
+  skity::PathBuilder polyline;
   polyline.MoveTo(10, 10);
   polyline.LineTo(200, 140);
   polyline.LineTo(50, 140);
@@ -490,14 +501,14 @@ TEST(ShapeGolden, StrokeJoinAndCap) {
 
   canvas->Save();
   canvas->Translate(20.f, 20.f);
-  canvas->DrawPath(polyline, paint);
+  canvas->DrawPath(polyline.Snapshot(), paint);
   canvas->Restore();
 
   polyline.Close();
 
   canvas->Save();
   canvas->Translate(220.f, 20.f);
-  canvas->DrawPath(polyline, paint);
+  canvas->DrawPath(polyline.Detach(), paint);
   canvas->Restore();
 
   std::filesystem::path expected_image_path(kGoldenTestImageDir);
@@ -518,11 +529,12 @@ TEST(ShapeGolden, PathTransformFillType) {
 
   recorder.BeginRecording(skity::Rect::MakeWH(400, 200));
 
-  skity::Path path;
+  skity::PathBuilder path_builder;
 
-  path.AddCircle(100.f, 100.f, 80.f);
-  path.AddCircle(100.f, 100.f, 30.f);
-  path.SetFillType(skity::Path::PathFillType::kEvenOdd);
+  path_builder.AddCircle(100.f, 100.f, 80.f);
+  path_builder.AddCircle(100.f, 100.f, 30.f);
+  path_builder.SetFillType(skity::Path::PathFillType::kEvenOdd);
+  skity::Path path = path_builder.Detach();
 
   skity::Paint paint;
   paint.SetAntiAlias(true);
@@ -560,21 +572,21 @@ TEST(ShapeGolden, DrawEmptyPath) {
   paint.SetStrokeWidth(20.f);
   paint.SetStrokeMiter(1.415f);
 
-  skity::Path path;
+  skity::PathBuilder path;
   canvas->Save();
   canvas->Translate(50.f, 50.f);
-  canvas->DrawPath(path, paint);
+  canvas->DrawPath(path.Snapshot(), paint);
   canvas->Restore();
 
   canvas->Save();
   path.MoveTo(100, 100);
-  canvas->DrawPath(path, paint);
+  canvas->DrawPath(path.Snapshot(), paint);
   canvas->Restore();
 
   canvas->Save();
   path.MoveTo(200, 200);
   path.MoveTo(300, 100);
-  canvas->DrawPath(path, paint);
+  canvas->DrawPath(path.Snapshot(), paint);
   canvas->Restore();
 
   std::filesystem::path expected_image_path(kGoldenTestImageDir);
@@ -673,12 +685,13 @@ TEST(ShapeGolden, DrawDegenerateCubic) {
 
   skity::Paint paint;
   paint.SetAntiAlias(true);
-  skity::Path path;
-  path.MoveTo(100, 100);
-  path.CubicTo(100, 100, 300, 100, 300, 100);
-  path.CubicTo(300, 100, 300, 300, 300, 300);
-  path.CubicTo(300, 300, 100, 300, 100, 300);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(100, 100);
+  path_builder.CubicTo(100, 100, 300, 100, 300, 100);
+  path_builder.CubicTo(300, 100, 300, 300, 300, 300);
+  path_builder.CubicTo(300, 300, 100, 300, 100, 300);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
 
   paint.SetColor(skity::Color_GREEN);
   paint.SetStrokeJoin(skity::Paint::Join::kBevel_Join);
@@ -710,18 +723,19 @@ TEST(ShapeGolden, TileBoundaryCrossings) {
   paint.SetAntiAlias(true);
   paint.SetColor(skity::ColorSetARGB(255, 30, 136, 229));
 
-  skity::Path path;
-  path.AddRect(skity::Rect::MakeLTRB(16.f, 16.f, 80.f, 64.f));
-  path.MoveTo(112.f, 16.f);
-  path.LineTo(176.f, 48.f);
-  path.LineTo(112.f, 80.f);
-  path.LineTo(80.f, 48.f);
-  path.Close();
-  path.MoveTo(16.f, 95.5f);
-  path.LineTo(176.f, 96.5f);
-  path.LineTo(176.f, 112.5f);
-  path.LineTo(16.f, 111.5f);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.AddRect(skity::Rect::MakeLTRB(16.f, 16.f, 80.f, 64.f));
+  path_builder.MoveTo(112.f, 16.f);
+  path_builder.LineTo(176.f, 48.f);
+  path_builder.LineTo(112.f, 80.f);
+  path_builder.LineTo(80.f, 48.f);
+  path_builder.Close();
+  path_builder.MoveTo(16.f, 95.5f);
+  path_builder.LineTo(176.f, 96.5f);
+  path_builder.LineTo(176.f, 112.5f);
+  path_builder.LineTo(16.f, 111.5f);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
   canvas->DrawPath(path, paint);
 
   EXPECT_TRUE(CompareShapeGolden(recorder, 192, 144, "tile_boundaries.png"));
@@ -758,28 +772,30 @@ TEST(ShapeGolden, CanonicalEdgesExact) {
   paint.SetAntiAlias(true);
   paint.SetColor(skity::Color_WHITE);
 
-  skity::Path winding;
-  winding.AddRect(skity::Rect::MakeLTRB(8.5f, 8.5f, 31.5f, 31.5f));
-  winding.MoveTo(40.f, 8.f);
-  winding.LineTo(72.f, 24.f);
-  winding.LineTo(40.f, 40.f);
-  winding.Close();
-  winding.MoveTo(88.f, 8.f);
-  winding.LineTo(88.f, 40.f);
-  winding.LineTo(120.f, 24.f);
-  winding.Close();
-  winding.MoveTo(16.f, 48.f);
-  winding.LineTo(48.f, 64.f);
-  winding.LineTo(16.f, 80.f);
-  winding.LineTo(0.f, 64.f);
-  winding.Close();
-  winding.AddRect(skity::Rect::MakeLTRB(128.5f, 8.5f, 151.5f, 87.5f));
+  skity::PathBuilder winding_builder;
+  winding_builder.AddRect(skity::Rect::MakeLTRB(8.5f, 8.5f, 31.5f, 31.5f));
+  winding_builder.MoveTo(40.f, 8.f);
+  winding_builder.LineTo(72.f, 24.f);
+  winding_builder.LineTo(40.f, 40.f);
+  winding_builder.Close();
+  winding_builder.MoveTo(88.f, 8.f);
+  winding_builder.LineTo(88.f, 40.f);
+  winding_builder.LineTo(120.f, 24.f);
+  winding_builder.Close();
+  winding_builder.MoveTo(16.f, 48.f);
+  winding_builder.LineTo(48.f, 64.f);
+  winding_builder.LineTo(16.f, 80.f);
+  winding_builder.LineTo(0.f, 64.f);
+  winding_builder.Close();
+  winding_builder.AddRect(skity::Rect::MakeLTRB(128.5f, 8.5f, 151.5f, 87.5f));
+  skity::Path winding = winding_builder.Detach();
   canvas->DrawPath(winding, paint);
 
-  skity::Path even_odd;
-  even_odd.AddRect(skity::Rect::MakeLTRB(72.5f, 48.5f, 119.5f, 87.5f));
-  even_odd.AddRect(skity::Rect::MakeLTRB(88.5f, 60.5f, 103.5f, 76.5f));
-  even_odd.SetFillType(skity::Path::PathFillType::kEvenOdd);
+  skity::PathBuilder even_odd_builder;
+  even_odd_builder.AddRect(skity::Rect::MakeLTRB(72.5f, 48.5f, 119.5f, 87.5f));
+  even_odd_builder.AddRect(skity::Rect::MakeLTRB(88.5f, 60.5f, 103.5f, 76.5f));
+  even_odd_builder.SetFillType(skity::Path::PathFillType::kEvenOdd);
+  skity::Path even_odd = even_odd_builder.Detach();
   canvas->DrawPath(even_odd, paint);
 
   ShapePathListContext context("canonical_edges_exact.png");
@@ -818,16 +834,17 @@ TEST(ShapeGolden, WindingContours) {
   paint.SetAntiAlias(true);
   paint.SetColor(skity::ColorSetARGB(255, 0, 150, 136));
 
-  skity::Path path;
-  path.AddRect(skity::Rect::MakeLTRB(16.f, 16.f, 128.f, 144.f));
-  path.MoveTo(48.f, 48.f);
-  path.LineTo(48.f, 112.f);
-  path.LineTo(96.f, 112.f);
-  path.LineTo(96.f, 48.f);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.AddRect(skity::Rect::MakeLTRB(16.f, 16.f, 128.f, 144.f));
+  path_builder.MoveTo(48.f, 48.f);
+  path_builder.LineTo(48.f, 112.f);
+  path_builder.LineTo(96.f, 112.f);
+  path_builder.LineTo(96.f, 48.f);
+  path_builder.Close();
 
-  path.AddRect(skity::Rect::MakeLTRB(160.f, 16.f, 272.f, 144.f));
-  path.AddRect(skity::Rect::MakeLTRB(192.f, 48.f, 240.f, 112.f));
+  path_builder.AddRect(skity::Rect::MakeLTRB(160.f, 16.f, 272.f, 144.f));
+  path_builder.AddRect(skity::Rect::MakeLTRB(192.f, 48.f, 240.f, 112.f));
+  skity::Path path = path_builder.Detach();
   canvas->DrawPath(path, paint);
 
   EXPECT_TRUE(CompareShapeGolden(recorder, 288, 160, "winding_contours.png"));
@@ -843,10 +860,11 @@ TEST(ShapeGolden, EvenOddContours) {
   paint.SetAntiAlias(true);
   paint.SetColor(skity::ColorSetARGB(255, 0, 150, 136));
 
-  skity::Path path;
-  path.AddRect(skity::Rect::MakeLTRB(16.f, 16.f, 112.f, 112.f));
-  path.AddRect(skity::Rect::MakeLTRB(48.f, 48.f, 80.f, 80.f));
-  path.SetFillType(skity::Path::PathFillType::kEvenOdd);
+  skity::PathBuilder path_builder;
+  path_builder.AddRect(skity::Rect::MakeLTRB(16.f, 16.f, 112.f, 112.f));
+  path_builder.AddRect(skity::Rect::MakeLTRB(48.f, 48.f, 80.f, 80.f));
+  path_builder.SetFillType(skity::Path::PathFillType::kEvenOdd);
+  skity::Path path = path_builder.Detach();
   canvas->DrawPath(path, paint);
 
   EXPECT_TRUE(CompareShapeGolden(recorder, 128, 128, "even_odd_contours.png"));
@@ -862,12 +880,13 @@ TEST(ShapeGolden, Curves) {
   paint.SetAntiAlias(true);
   paint.SetColor(skity::ColorSetARGB(255, 142, 36, 170));
 
-  skity::Path path;
-  path.AddCircle(56.f, 80.f, 40.f);
-  path.MoveTo(112.f, 128.f);
-  path.QuadTo(144.f, 8.f, 176.f, 64.f);
-  path.CubicTo(240.f, 96.f, 224.f, 152.f, 112.f, 128.f);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.AddCircle(56.f, 80.f, 40.f);
+  path_builder.MoveTo(112.f, 128.f);
+  path_builder.QuadTo(144.f, 8.f, 176.f, 64.f);
+  path_builder.CubicTo(240.f, 96.f, 224.f, 152.f, 112.f, 128.f);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
   canvas->DrawPath(path, paint);
 
   EXPECT_TRUE(CompareShapeGolden(recorder, 256, 160, "curves.png"));
@@ -883,23 +902,24 @@ TEST(ShapeGolden, ConcaveAndSelfIntersecting) {
   paint.SetAntiAlias(true);
   paint.SetColor(skity::ColorSetARGB(255, 239, 108, 0));
 
-  skity::Path path;
-  path.MoveTo(16.f, 16.f);
-  path.LineTo(128.f, 16.f);
-  path.LineTo(128.f, 48.f);
-  path.LineTo(48.f, 48.f);
-  path.LineTo(48.f, 112.f);
-  path.LineTo(128.f, 112.f);
-  path.LineTo(128.f, 144.f);
-  path.LineTo(16.f, 144.f);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(16.f, 16.f);
+  path_builder.LineTo(128.f, 16.f);
+  path_builder.LineTo(128.f, 48.f);
+  path_builder.LineTo(48.f, 48.f);
+  path_builder.LineTo(48.f, 112.f);
+  path_builder.LineTo(128.f, 112.f);
+  path_builder.LineTo(128.f, 144.f);
+  path_builder.LineTo(16.f, 144.f);
+  path_builder.Close();
 
-  path.MoveTo(210.f, 16.f);
-  path.LineTo(249.f, 136.f);
-  path.LineTo(146.f, 61.f);
-  path.LineTo(274.f, 61.f);
-  path.LineTo(171.f, 136.f);
-  path.Close();
+  path_builder.MoveTo(210.f, 16.f);
+  path_builder.LineTo(249.f, 136.f);
+  path_builder.LineTo(146.f, 61.f);
+  path_builder.LineTo(274.f, 61.f);
+  path_builder.LineTo(171.f, 136.f);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
   canvas->DrawPath(path, paint);
 
   EXPECT_TRUE(
@@ -916,22 +936,24 @@ TEST(ShapeGolden, SaveLayerIsolation) {
   paint.SetAntiAlias(true);
   paint.SetColor(skity::ColorSetARGB(255, 30, 136, 229));
 
-  skity::Path root_path;
-  root_path.MoveTo(16.f, 16.f);
-  root_path.LineTo(128.f, 80.f);
-  root_path.LineTo(16.f, 144.f);
-  root_path.Close();
+  skity::PathBuilder root_path_builder;
+  root_path_builder.MoveTo(16.f, 16.f);
+  root_path_builder.LineTo(128.f, 80.f);
+  root_path_builder.LineTo(16.f, 144.f);
+  root_path_builder.Close();
+  skity::Path root_path = root_path_builder.Detach();
   canvas->DrawPath(root_path, paint);
 
   canvas->SaveLayer(skity::Rect::MakeLTRB(64.f, 16.f, 208.f, 144.f),
                     skity::Paint{});
   paint.SetColor(skity::ColorSetARGB(255, 239, 108, 0));
-  skity::Path layer_path;
-  layer_path.MoveTo(136.f, 16.f);
-  layer_path.LineTo(208.f, 80.f);
-  layer_path.LineTo(136.f, 144.f);
-  layer_path.LineTo(64.f, 80.f);
-  layer_path.Close();
+  skity::PathBuilder layer_path_builder;
+  layer_path_builder.MoveTo(136.f, 16.f);
+  layer_path_builder.LineTo(208.f, 80.f);
+  layer_path_builder.LineTo(136.f, 144.f);
+  layer_path_builder.LineTo(64.f, 80.f);
+  layer_path_builder.Close();
+  skity::Path layer_path = layer_path_builder.Detach();
   canvas->DrawPath(layer_path, paint);
   canvas->Restore();
 

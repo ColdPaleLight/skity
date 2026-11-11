@@ -11,7 +11,6 @@
 
 namespace skity {
 
-constexpr static float kPrecision = 4.0f;
 constexpr static float kMaxPrecision = 10000.f;
 
 float get_persp_ratio(const Matrix& transform) {
@@ -43,15 +42,15 @@ float device_precision_to_local_precision(float device_precision,
 }
 
 void PathVisitor::VisitPath(const Path& path, bool force_close) {
-  Path::Iter iter{path, force_close};
+  float precision = matrix_.HasPersp() ? device_precision_to_local_precision(
+                                             kPathPrecision, path, matrix_)
+                                       : kPathPrecision;
+  VisitPath(Path::Iter{path, force_close}, precision);
+}
+
+void PathVisitor::VisitPath(Path::Iter iter, float precision) {
   std::array<Vec2, 4> pts = {};
-
   this->OnBeginPath();
-
-  float precision = kPrecision;
-  if (matrix_.HasPersp()) {
-    precision = device_precision_to_local_precision(kPrecision, path, matrix_);
-  }
 
   for (;;) {
     Path::Verb verb = iter.Next(pts.data());
@@ -114,7 +113,7 @@ void PathVisitor::HandleQuadTo(Vec2 const& p1, Vec2 const& p2, Vec2 const& p3,
     num = std::ceil(wangs_formula::Quadratic(precision, arc.data()));
   } else {
     num = std::ceil(wangs_formula::Quadratic(
-        kPrecision, arc.data(), wangs_formula::VectorXform(matrix_)));
+        kPathPrecision, arc.data(), wangs_formula::VectorXform(matrix_)));
   }
   num = ClampCurveSegments(num);
   if (num <= 1.0f) {
@@ -177,7 +176,7 @@ void PathVisitor::HandleCubicTo(Vec2 const& p1, Vec2 const& p2, Vec2 const& p3,
   if (matrix_.HasPersp()) {
     num = std::ceil(wangs_formula::Cubic(precision, arc.data()));
   } else {
-    num = std::ceil(wangs_formula::Cubic(kPrecision, arc.data(),
+    num = std::ceil(wangs_formula::Cubic(kPathPrecision, arc.data(),
                                          wangs_formula::VectorXform(matrix_)));
   }
   num = ClampCurveSegments(num);

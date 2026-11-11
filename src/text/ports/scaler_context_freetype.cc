@@ -932,7 +932,7 @@ bool ScalerContextFreetype::GeneratePathLock(GlyphData* glyph_data) {
   auto* path = &glyph_data->path_;
   // FT_IS_SCALABLE is documented to mean the face contains outline glyphs.
   if (!FT_IS_SCALABLE(face_) || this->SetupSize()) {
-    path->Reset();
+    *path = {};
     return false;
   }
 
@@ -943,7 +943,7 @@ bool ScalerContextFreetype::GeneratePathLock(GlyphData* glyph_data) {
 
   FT_Error err = FT_Load_Glyph(face_, glyph_data->Id(), flags);
   if (err != 0 || face_->glyph->format != FT_GLYPH_FORMAT_OUTLINE) {
-    path->Reset();
+    *path = {};
     return false;
   }
   EmboldenIfNeeded(glyph_data->Id());

@@ -5,6 +5,7 @@
 #include "case/mask_filter/mask_filter_example.hpp"
 
 #include <skity/codec/codec.hpp>
+#include <skity/graphic/path_builder.hpp>
 #include <skity/skity.hpp>
 
 #include "common/app_utils.hpp"
@@ -41,10 +42,11 @@ void draw_filter(skity::Canvas* canvas) {
 
   paint.SetMaskFilter(filter);
 
-  skity::Path path;
-  path.MoveTo(10, 10);
-  path.QuadTo(256, 64, 128, 128);
-  path.QuadTo(10, 192, 250, 250);
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(10, 10);
+  path_builder.QuadTo(256, 64, 128, 128);
+  path_builder.QuadTo(10, 192, 250, 250);
+  skity::Path path = path_builder.Detach();
 
   {
     skity::Vec4 colors[] = {
@@ -127,18 +129,19 @@ void draw_filter(skity::Canvas* canvas) {
   canvas->DrawImage(skity::Image::MakeImage(image_ff), image_rect, &paint);
   canvas->Restore();
 
-  skity::Path path2;
-  path2.MoveTo(199, 34);
-  path2.LineTo(253, 143);
-  path2.LineTo(374, 160);
-  path2.LineTo(287, 244);
-  path2.LineTo(307, 365);
-  path2.LineTo(199, 309);
-  path2.LineTo(97, 365);
-  path2.LineTo(112, 245);
-  path2.LineTo(26, 161);
-  path2.LineTo(146, 143);
-  path2.Close();
+  skity::PathBuilder path2_builder;
+  path2_builder.MoveTo(199, 34);
+  path2_builder.LineTo(253, 143);
+  path2_builder.LineTo(374, 160);
+  path2_builder.LineTo(287, 244);
+  path2_builder.LineTo(307, 365);
+  path2_builder.LineTo(199, 309);
+  path2_builder.LineTo(97, 365);
+  path2_builder.LineTo(112, 245);
+  path2_builder.LineTo(26, 161);
+  path2_builder.LineTo(146, 143);
+  path2_builder.Close();
+  skity::Path path2 = path2_builder.Detach();
 
   paint.SetMaskFilter(
       skity::MaskFilter::MakeBlur(skity::BlurStyle::kNormal, 10.f));

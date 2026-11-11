@@ -7,6 +7,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <skity/effect/shader.hpp>
 #include <skity/graphic/blend_mode.hpp>
+#include <skity/graphic/path_builder.hpp>
 
 #include "src/geometry/glm_helper.hpp"
 #include "src/gpu/gl/gpu_buffer_gl.hpp"
@@ -193,8 +194,8 @@ HWDrawState GLDrawTextureLayer::OnPrepare(HWDrawContext *context) {
   // prepare layer back draw
   {
     const auto &bounds = GetBounds();
-    Path path;
-    path.AddRect(bounds);
+    PathBuilder builder;
+    Path path = builder.AddRect(bounds).Detach();
 
     Paint paint;
     paint.SetStyle(Paint::kFill_Style);
@@ -328,8 +329,8 @@ HWDrawState GLPartialDrawTextureLayer::OnPrepare(
     auto width = right_ - left_;
     auto bounds = Rect::MakeXYWH(left_, top_, width, height);
     bounds.Offset(dx_, dy_);
-    Path path;
-    path.AddRect(bounds);
+    PathBuilder builder;
+    Path path = builder.AddRect(bounds).Detach();
 
     Paint paint;
     paint.SetStyle(Paint::kFill_Style);

@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 
 #include <filesystem>
+#include <skity/graphic/path_builder.hpp>
 #include <skity/recorder/picture_recorder.hpp>
 
 #include "common/golden_test_check.hpp"
@@ -40,12 +41,13 @@ bool CompareRecorderGolden(skity::DisplayList* display_list,
 }
 
 skity::Path MakeClipPath() {
-  skity::Path path;
-  path.MoveTo(20.f, 10.f);
-  path.LineTo(110.f, 25.f);
-  path.LineTo(90.f, 95.f);
-  path.QuadTo(45.f, 115.f, 10.f, 70.f);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(20.f, 10.f);
+  path_builder.LineTo(110.f, 25.f);
+  path_builder.LineTo(90.f, 95.f);
+  path_builder.QuadTo(45.f, 115.f, 10.f, 70.f);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
   return path;
 }
 

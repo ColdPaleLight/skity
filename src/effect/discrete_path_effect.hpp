@@ -19,7 +19,7 @@ class DiscretePathEffect : public PathEffect {
   void FlattenToBuffer(WriteBuffer& buffer) const override;
 
  protected:
-  bool OnFilterPath(Path* dst, Path const& src, bool stroke,
+  bool OnFilterPath(PathBuilder* dst, Path const& src, bool stroke,
                     Paint const&) const override;
 
  private:

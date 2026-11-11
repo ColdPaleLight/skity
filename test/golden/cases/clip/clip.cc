@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 
 #include <filesystem>
+#include <skity/graphic/path_builder.hpp>
 #include <skity/recorder/picture_recorder.hpp>
 
 #include "common/golden_test_check.hpp"
@@ -49,28 +50,30 @@ bool CompareClipGolden(skity::PictureRecorder& recorder, const char* name,
 }
 
 skity::Path MakeStarPath() {
-  skity::Path path;
-  path.MoveTo(199, 34);
-  path.LineTo(253, 143);
-  path.LineTo(374, 160);
-  path.LineTo(287, 244);
-  path.LineTo(307, 365);
-  path.LineTo(199, 309);
-  path.LineTo(97, 365);
-  path.LineTo(112, 245);
-  path.LineTo(26, 161);
-  path.LineTo(146, 143);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(199, 34);
+  path_builder.LineTo(253, 143);
+  path_builder.LineTo(374, 160);
+  path_builder.LineTo(287, 244);
+  path_builder.LineTo(307, 365);
+  path_builder.LineTo(199, 309);
+  path_builder.LineTo(97, 365);
+  path_builder.LineTo(112, 245);
+  path_builder.LineTo(26, 161);
+  path_builder.LineTo(146, 143);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
 
   return path;
 }
 
 skity::Path MakeCoverageAATriangle() {
-  skity::Path path;
-  path.MoveTo(0.f, 112.f);
-  path.LineTo(64.f, 0.f);
-  path.LineTo(128.f, 112.f);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(0.f, 112.f);
+  path_builder.LineTo(64.f, 0.f);
+  path_builder.LineTo(128.f, 112.f);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
   return path;
 }
 
@@ -149,12 +152,13 @@ TEST(ClipGolden, ClipPath) {
 
   canvas->DrawPath(path, paint);
 
-  skity::Path clip_path;
+  skity::PathBuilder clip_path_builder;
 
-  clip_path.MoveTo(10.f, 10.f);
-  clip_path.QuadTo(300.f, 10.f, 150.f, 150.f);
-  clip_path.QuadTo(10.f, 300.f, 300.f, 300.f);
-  clip_path.Close();
+  clip_path_builder.MoveTo(10.f, 10.f);
+  clip_path_builder.QuadTo(300.f, 10.f, 150.f, 150.f);
+  clip_path_builder.QuadTo(10.f, 300.f, 300.f, 300.f);
+  clip_path_builder.Close();
+  skity::Path clip_path = clip_path_builder.Detach();
   paint.SetColor(skity::Color_RED);
 
   canvas->DrawPath(clip_path, paint);
@@ -183,12 +187,13 @@ TEST(ClipGolden, ClipPathDifference) {
 
   canvas->DrawPath(path, paint);
 
-  skity::Path clip_path;
+  skity::PathBuilder clip_path_builder;
 
-  clip_path.MoveTo(10.f, 10.f);
-  clip_path.QuadTo(300.f, 10.f, 150.f, 150.f);
-  clip_path.QuadTo(10.f, 300.f, 300.f, 300.f);
-  clip_path.Close();
+  clip_path_builder.MoveTo(10.f, 10.f);
+  clip_path_builder.QuadTo(300.f, 10.f, 150.f, 150.f);
+  clip_path_builder.QuadTo(10.f, 300.f, 300.f, 300.f);
+  clip_path_builder.Close();
+  skity::Path clip_path = clip_path_builder.Detach();
   paint.SetColor(skity::Color_RED);
 
   canvas->DrawPath(clip_path, paint);

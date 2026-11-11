@@ -20,6 +20,7 @@
 #include <skity/c/skity_mask_filter.h>
 #include <skity/c/skity_paint.h>
 #include <skity/c/skity_path.h>
+#include <skity/c/skity_path_builder.h>
 #include <skity/c/skity_path_effect.h>
 #include <skity/c/skity_shader.h>
 #include <skity/c/skity_text.h>
@@ -529,66 +530,70 @@ inline void SetPaintMaskFilter(const std::shared_ptr<Paint>& paint,
 
 class PathBuilder {
  public:
-  PathBuilder() : path_(skity_path_create()) {}
-  ~PathBuilder() { skity_path_destroy(path_); }
+  PathBuilder() : builder_(skity_path_builder_create()) {}
+  ~PathBuilder() { skity_path_builder_destroy(builder_); }
   PathBuilder(const PathBuilder&) = delete;
   PathBuilder& operator=(const PathBuilder&) = delete;
 
-  void MoveTo(float x, float y) { skity_path_move_to(path_, x, y); }
-  void LineTo(float x, float y) { skity_path_line_to(path_, x, y); }
+  void MoveTo(float x, float y) { skity_path_builder_move_to(builder_, x, y); }
+  void LineTo(float x, float y) { skity_path_builder_line_to(builder_, x, y); }
   void QuadTo(float x1, float y1, float x2, float y2) {
-    skity_path_quad_to(path_, x1, y1, x2, y2);
+    skity_path_builder_quad_to(builder_, x1, y1, x2, y2);
   }
   void ConicTo(float x1, float y1, float x2, float y2, float w) {
-    skity_path_conic_to(path_, x1, y1, x2, y2, w);
+    skity_path_builder_conic_to(builder_, x1, y1, x2, y2, w);
   }
   void CubicTo(float x1, float y1, float x2, float y2, float x3, float y3) {
-    skity_path_cubic_to(path_, x1, y1, x2, y2, x3, y3);
+    skity_path_builder_cubic_to(builder_, x1, y1, x2, y2, x3, y3);
   }
-  void Close() { skity_path_close(path_); }
+  void Close() { skity_path_builder_close(builder_); }
   void ArcTo(float rx, float ry, float x_axis_rotate, Path::ArcSize large_arc,
              Path::Direction sweep, float x, float y) {
-    skity_path_arc_to_svg(path_, rx, ry, x_axis_rotate,
-                          static_cast<skity_arc_size>(large_arc),
-                          static_cast<skity_path_direction>(sweep), x, y);
+    skity_path_builder_arc_to_svg(
+        builder_, rx, ry, x_axis_rotate, static_cast<skity_arc_size>(large_arc),
+        static_cast<skity_path_direction>(sweep), x, y);
   }
   void AddRRect(const Rect& rect, const Vec2 radii[4], Path::Direction dir) {
-    skity_path_add_round_rect_radii(path_,
-                                    reinterpret_cast<const skity_rect*>(&rect),
-                                    reinterpret_cast<const float*>(radii),
-                                    static_cast<skity_path_direction>(dir));
+    skity_rect bounds{rect.Left(), rect.Top(), rect.Right(), rect.Bottom()};
+    skity_vec2 corners[4];
+    for (size_t i = 0; i < 4; ++i) {
+      corners[i] = {{{radii[i].x, radii[i].y}}};
+    }
+    skity_path_builder_add_rrect(builder_, &bounds, corners,
+                                 static_cast<skity_path_direction>(dir));
   }
   void AddRRectStart(const Rect& rect, const Vec2 radii[4], Path::Direction dir,
                      int32_t start) {
-    skity_path_add_round_rect_radii_start(
-        path_, reinterpret_cast<const skity_rect*>(&rect),
-        reinterpret_cast<const float*>(radii),
-        static_cast<skity_path_direction>(dir), start);
+    skity_rect bounds{rect.Left(), rect.Top(), rect.Right(), rect.Bottom()};
+    skity_vec2 corners[4];
+    for (size_t i = 0; i < 4; ++i) {
+      corners[i] = {{{radii[i].x, radii[i].y}}};
+    }
+    skity_path_builder_add_rrect_start(builder_, &bounds, corners,
+                                       static_cast<skity_path_direction>(dir),
+                                       static_cast<uint32_t>(start));
   }
   void SetFillType(Path::PathFillType type) {
-    skity_path_set_fill_type(path_, static_cast<skity_path_fill_type>(type));
+    skity_path_builder_set_fill_type(builder_,
+                                     static_cast<skity_path_fill_type>(type));
   }
 
-  // Borrowed shared_ptr view of the path under construction (the handle
-  // stays owned by this builder).
-  std::shared_ptr<Path> Peek() const {
-    return skity::capi::get_impl<skity_path_s, Path>(path_,
-                                                     SKITY_OBJECT_TYPE_PATH);
+  Vec2 GetLastPt() const {
+    skity_vec2 point{};
+    skity_path_builder_get_last_pt(builder_, &point);
+    return {point.x, point.y};
   }
 
   std::shared_ptr<Path> Take() {
-    if (path_ == nullptr) {
-      return nullptr;
-    }
-    auto sp = skity::capi::get_impl<skity_path_s, Path>(path_,
-                                                        SKITY_OBJECT_TYPE_PATH);
-    skity_path_destroy(path_);
-    path_ = nullptr;
-    return sp;
+    skity_path path = skity_path_builder_detach(builder_);
+    auto result =
+        skity::capi::get_impl<skity_path_s, Path>(path, SKITY_OBJECT_TYPE_PATH);
+    skity_path_destroy(path);
+    return result;
   }
 
  private:
-  skity_path path_;
+  skity_path_builder builder_;
 };
 
 //

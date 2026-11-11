@@ -29,9 +29,9 @@ SKITY_C_API void skity_path_builder_destroy(skity_path_builder builder);
 SKITY_C_API skity_path_builder
 skity_path_builder_create_from_path(skity_path source);
 /**
- * @brief Transfers an owning source's geometry into a new builder.
- *        The source handle remains valid and must still be destroyed; its
- *        Path becomes empty winding. Borrowed sources are rejected.
+ * @brief Imports an owning source into a new builder, reusing its buffers
+ *        when exclusive. The source handle remains valid and its Path
+ *        becomes empty winding. Borrowed sources are rejected.
  * @return new builder, or NULL without changing source on a reported failure
  */
 SKITY_C_API skity_path_builder
@@ -50,7 +50,7 @@ SKITY_C_API skity_path skity_path_builder_snapshot(skity_path_builder builder);
 SKITY_C_API skity_path skity_path_builder_detach(skity_path_builder builder);
 /**
  * @brief Replaces an existing owning Path, keeping its object/handle identity.
- *        Its old geometry capacity is reused by the now-empty winding builder.
+ *        The now-empty winding builder reuses the old buffers when exclusive.
  *        This mutation invalidates destination iterators.
  * @return 1 on success; 0 on NULL/wrong-type/borrowed destination, changing
  * neither

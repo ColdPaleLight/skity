@@ -14,6 +14,7 @@
 #include <cmath>
 #include <limits>
 
+#include "src/graphic/path_priv.hpp"
 #include "src/graphic/path_visitor.hpp"
 
 namespace skity {
@@ -73,10 +74,34 @@ class CoverageAAPathTiler::PathTilingVisitor final : public PathVisitor {
 CoverageAATiledPath CoverageAAPathTiler::Tile(const Path& path,
                                               const Matrix& local_to_global,
                                               const Rect* scissor) {
-  // TODO: Transforming control points before flattening is only equivalent
-  // for affine transforms. Handle perspective before Coverage AA supports it.
-  auto transformed_path = path.CopyWithMatrix(local_to_global);
-  auto bounds = transformed_path.GetBounds();
+  Rect bounds;
+  Path::Iter iter;
+  Path transformed_path;
+  if (local_to_global.IsIdentity()) {
+    bounds = path.GetBounds();
+    iter.SetPath(path, true);
+  } else if (PathPriv::IsPlanar(path) &&
+             PathPriv::IsPlanarTransform(local_to_global)) {
+    // Keep verbs and conic weights in the original immutable path.
+    const size_t count = path.CountPoints();
+    if (transformed_points_.size() < count) {
+      transformed_points_.resize(count);
+    }
+    PathPriv::TransformPoints2D(local_to_global, path.Points(),
+                                transformed_points_.data(), count);
+    bool finite;
+    bounds = PathPriv::ComputeBounds(
+        transformed_points_.data(), count,
+        path.CountVerbs() > 1 && path.VerbsEnd()[-1] == Path::Verb::kMove,
+        &finite);
+    iter = PathPriv::IterateWithPlanarPoints(path, transformed_points_.data(),
+                                             true);
+  } else {
+    // Retain the existing homogeneous transform for legacy paths.
+    transformed_path = path.CopyWithMatrix(local_to_global);
+    bounds = transformed_path.GetBounds();
+    iter.SetPath(transformed_path, true);
+  }
   if (bounds.IsEmpty()) {
     return {path.GetFillType(), tiles_.size(), 0};
   }
@@ -87,7 +112,7 @@ CoverageAATiledPath CoverageAAPathTiler::Tile(const Path& path,
   // Restrict only the dense tile domain. Visiting the complete contour keeps
   // edges to the left of the scissor available for row backdrop calculation.
   PathTilingVisitor visitor(this);
-  visitor.VisitPath(transformed_path, true);
+  visitor.VisitPath(iter);
   return ResolveBackdrops(path.GetFillType());
 }
 

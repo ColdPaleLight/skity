@@ -10,6 +10,8 @@
 
 #include "src/text/ports/win/scaler_context_win.hpp"
 
+#include <skity/graphic/path_builder.hpp>
+
 // clang-format off
 #include "src/text/ports/win/dwrite_version.hpp"
 #include "src/base/platform/win/handle_result.hpp"
@@ -218,7 +220,7 @@ Matrix DWriteMatrixToMatrix(const DWRITE_MATRIX& matrix) {
 
 class DWritePathSink final : public IDWriteGeometrySink {
  public:
-  explicit DWritePathSink(Path* path) : path_(path) {}
+  explicit DWritePathSink(PathBuilder* path) : path_(path) {}
 
   SK_STDMETHODIMP QueryInterface(REFIID riid, void** object) override {
     if (!object) {
@@ -359,7 +361,7 @@ class DWritePathSink final : public IDWriteGeometrySink {
   }
 
   LONG ref_count_ = 1;
-  Path* path_ = nullptr;
+  PathBuilder* path_ = nullptr;
   bool started_ = false;
   D2D1_POINT_2F current_ = {0.0f, 0.0f};
 };
@@ -1184,11 +1186,17 @@ class ScalerContextDWrite : public ScalerContext {
     }
 
     const DWRITE_GLYPH_RUN& run = color_run->glyphRun;
-    ScopedComPtr<IDWriteGeometrySink> geometry_sink(new DWritePathSink(path));
+    PathBuilder builder(*path);
+    ScopedComPtr<IDWriteGeometrySink> geometry_sink(
+        new DWritePathSink(&builder));
     HRESULT hr = run.fontFace->GetGlyphRunOutline(
         run.fontEmSize, run.glyphIndices, run.glyphAdvances, run.glyphOffsets,
         run.glyphCount, run.isSideways, run.bidiLevel % 2, geometry_sink.get());
-    return SUCCEEDED(hr);
+    if (SUCCEEDED(hr)) {
+      builder.DetachTo(path);
+      return true;
+    }
+    return false;
   }
 
   bool GenerateDWriteColorLayerBounds(UINT16 glyph_id, float text_size,
@@ -1233,8 +1241,9 @@ class ScalerContextDWrite : public ScalerContext {
     }
 
     UINT16 glyph_id = static_cast<UINT16>(glyph_index);
-    Path path;
-    ScopedComPtr<IDWriteGeometrySink> geometry_sink(new DWritePathSink(&path));
+    PathBuilder builder;
+    ScopedComPtr<IDWriteGeometrySink> geometry_sink(
+        new DWritePathSink(&builder));
     if (FAILED(font_face_->GetGlyphRunOutline(text_size, &glyph_id, nullptr,
                                               nullptr, 1, FALSE, FALSE,
                                               geometry_sink.get()))) {
@@ -1244,9 +1253,9 @@ class ScalerContextDWrite : public ScalerContext {
     Matrix path_matrix = ctm;
     path_matrix.PreScale(1.0f / text_size, 1.0f / text_size);
     if (!path_matrix.IsIdentity()) {
-      path = path.CopyWithMatrix(path_matrix);
+      builder.Transform(path_matrix);
     }
-    bounds->Join(path.GetBounds());
+    bounds->Join(builder.GetBounds());
     return true;
   }
 
@@ -1383,7 +1392,9 @@ class ScalerContextDWrite : public ScalerContext {
     }
 
     UINT16 glyph_id = static_cast<UINT16>(glyph_index);
-    ScopedComPtr<IDWriteGeometrySink> geometry_sink(new DWritePathSink(path));
+    PathBuilder builder(*path);
+    ScopedComPtr<IDWriteGeometrySink> geometry_sink(
+        new DWritePathSink(&builder));
     if (FAILED(font_face_->GetGlyphRunOutline(text_size, &glyph_id, nullptr,
                                               nullptr, 1, FALSE, FALSE,
                                               geometry_sink.get()))) {
@@ -1392,7 +1403,7 @@ class ScalerContextDWrite : public ScalerContext {
 
     Matrix path_matrix;
     path_matrix.PreScale(1.0f / text_size, 1.0f / text_size);
-    *path = path->CopyWithMatrix(path_matrix);
+    builder.Transform(path_matrix).DetachTo(path);
     return true;
   }
 
@@ -2503,7 +2514,7 @@ class ScalerContextDWrite : public ScalerContext {
 
   bool GenerateDWriteOutlinePath(UINT16 glyph_id, float text_size,
                                  const Matrix22& transform, Path* path) {
-    Path outline;
+    PathBuilder outline;
     ScopedComPtr<IDWriteGeometrySink> geometry_sink(
         new DWritePathSink(&outline));
     if (FAILED(font_face_->GetGlyphRunOutline(text_size, &glyph_id, nullptr,
@@ -2513,10 +2524,10 @@ class ScalerContextDWrite : public ScalerContext {
     }
 
     if (!transform.IsIdentity()) {
-      outline = outline.CopyWithMatrix(transform.ToMatrix());
+      outline.Transform(transform.ToMatrix());
     }
 
-    *path = std::move(outline);
+    outline.DetachTo(path);
     return true;
   }
 

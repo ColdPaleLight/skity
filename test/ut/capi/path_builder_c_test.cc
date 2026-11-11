@@ -252,6 +252,46 @@ TEST(CapiPathBuilder, QueriesAndReset) {
   EXPECT_EQ(skity_path_builder_is_empty(a.b), 1u);
 }
 
+TEST(CapiPathBuilder, LegacyPathEditsPreserveSharedValuesAndZW) {
+  PathGuard source;
+  skity_path_move_to(source.p, 2, 4);
+  skity_path_line_to(source.p, 6, 8);
+  const skity_matrix depth = {{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 3, 2}};
+  const skity_matrix offset = {
+      {1, 0, 0, 0, 0, 1, 0, 0, 4, 0, 1, 0, 5, 0, 0, 1}};
+  skity_path_transform(source.p, &depth);
+  PathGuard clone{skity_path_clone(source.p)};
+  ASSERT_NE(clone.p, nullptr);
+  skity_path_transform(source.p, &offset);
+
+  skity_point points[2]{};
+  ASSERT_EQ(skity_path_get_points(source.p, points, 2), 2);
+  EXPECT_FLOAT_EQ(points[0].x, 24);
+  EXPECT_FLOAT_EQ(points[1].x, 28);
+  EXPECT_FLOAT_EQ(points[1].y, 8);
+  EXPECT_FLOAT_EQ(points[1].z, 3);
+  EXPECT_FLOAT_EQ(points[1].w, 2);
+  ASSERT_EQ(skity_path_get_points(clone.p, points, 2), 2);
+  EXPECT_FLOAT_EQ(points[0].x, 2);
+  EXPECT_FLOAT_EQ(points[1].x, 6);
+  EXPECT_FLOAT_EQ(points[1].z, 3);
+  EXPECT_FLOAT_EQ(points[1].w, 2);
+
+  skity_path_add_path_with_mode(source.p, source.p, SKITY_PATH_ADD_MODE_APPEND);
+  EXPECT_EQ(skity_path_count_points(source.p), 4u);
+  EXPECT_EQ(skity_path_count_points(clone.p), 2u);
+  skity_path_set_last_pt(source.p, 10, 12);
+  skity_point last{};
+  ASSERT_EQ(skity_path_get_last_pt(source.p, &last), 1u);
+  EXPECT_FLOAT_EQ(last.x, 10);
+  EXPECT_FLOAT_EQ(last.y, 12);
+  EXPECT_FLOAT_EQ(last.z, 0);
+  EXPECT_FLOAT_EQ(last.w, 1);
+  ASSERT_EQ(skity_path_get_point(source.p, 1, &last), 1u);
+  EXPECT_FLOAT_EQ(last.z, 3);
+  EXPECT_FLOAT_EQ(last.w, 2);
+}
+
 TEST(CapiPathBuilder, InvalidAndBorrowedHandlesDoNotConsumeGeometry) {
   BuilderGuard b;
   PathGuard p;
@@ -268,12 +308,17 @@ TEST(CapiPathBuilder, InvalidAndBorrowedHandlesDoNotConsumeGeometry) {
   EXPECT_EQ(skity_path_builder_detach_to(wrong, p.p), 0u);
   skity_path_builder_destroy(wrong);
   skity_path_builder_line_to(wrong, 10, 20);
+  ASSERT_EQ(skity_path_count_points(p.p), 2u);
   PathGuard borrowed{skity::capi::alloc_handle<skity_path_s>(
       SKITY_OBJECT_TYPE_PATH, 0u, p.p->impl)};
   EXPECT_EQ(skity_path_builder_create_from_path_move(borrowed.p), nullptr);
   EXPECT_EQ(skity_path_builder_detach_to(b.b, borrowed.p), 0u);
   BuilderGuard copied{skity_path_builder_create_from_path(borrowed.p)};
   ASSERT_NE(copied.b, nullptr);
+  EXPECT_EQ(skity_path_builder_count_points(copied.b), 2u);
+  skity_path_line_to(borrowed.p, 15, 16);
+  EXPECT_EQ(skity_path_count_points(borrowed.p), 3u);
+
   skity_vec2 point{{{9, 9}}};
   for (int index : {-1, 2}) {
     EXPECT_EQ(skity_path_builder_get_point(b.b, index, &point), 0u);

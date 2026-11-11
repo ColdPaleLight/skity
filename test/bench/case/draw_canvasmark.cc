@@ -16,6 +16,7 @@
 #include <array>
 #include <cassert>
 #include <cmath>
+#include <skity/graphic/path_builder.hpp>
 #include <vector>
 
 namespace skity {
@@ -398,26 +399,27 @@ class CanvasMarkBenchmark : public Benchmark {
         auto a = item.commands[0], b = item.commands[1];
         canvas->DrawLine(a.x, a.y, b.x, b.y, paint);
       } else {
-        Path path;
+        PathBuilder path_builder;
         for (const auto& p : item.commands) {
           switch (p.verb) {
             case 'M':
-              path.MoveTo(p.x, p.y);
+              path_builder.MoveTo(p.x, p.y);
               break;
             case 'L':
-              path.LineTo(p.x, p.y);
+              path_builder.LineTo(p.x, p.y);
               break;
             case 'Q':
-              path.QuadTo(p.cx, p.cy, p.x, p.y);
+              path_builder.QuadTo(p.cx, p.cy, p.x, p.y);
               break;
             case 'C':
-              path.CubicTo(p.cx, p.cy, p.dx, p.dy, p.x, p.y);
+              path_builder.CubicTo(p.cx, p.cy, p.dx, p.dy, p.x, p.y);
               break;
             case 'Z':
-              path.Close();
+              path_builder.Close();
               break;
           }
         }
+        Path path = path_builder.Detach();
         if (item.clip) {
           canvas->ClipPath(path);
           canvas->DrawRect(Rect::MakeXYWH(0, 0, 1, 1), paint);

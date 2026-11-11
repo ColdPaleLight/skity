@@ -9,6 +9,7 @@
 #include <skity/geometry/matrix.hpp>
 #include <skity/graphic/paint.hpp>
 #include <skity/graphic/path.hpp>
+#include <skity/graphic/path_builder.hpp>
 #include <skity/render/canvas.hpp>
 
 #include "common/golden_test_env.hpp"
@@ -95,11 +96,12 @@ TEST(StrokeDepthGLIntegrationTest, DirectFramebufferStrokeDrawsOnce) {
         transform.SetPersp0(0.001f);
         canvas->Concat(transform);
       }
-      Path path;
-      path.MoveTo(4.f, 16.f);
-      path.LineTo(28.f, 16.f);
-      path.MoveTo(16.f, 16.f);
-      path.LineTo(28.f, 16.f);
+      PathBuilder path_builder;
+      path_builder.MoveTo(4.f, 16.f);
+      path_builder.LineTo(28.f, 16.f);
+      path_builder.MoveTo(16.f, 16.f);
+      path_builder.LineTo(28.f, 16.f);
+      Path path = path_builder.Detach();
       Paint paint;
       paint.SetStyle(Paint::kStroke_Style);
       paint.SetStrokeWidth(8.f);

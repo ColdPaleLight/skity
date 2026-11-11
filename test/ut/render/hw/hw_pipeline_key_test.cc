@@ -6,6 +6,7 @@
 
 #include <gtest/gtest.h>
 
+#include <skity/graphic/path_builder.hpp>
 #include <vector>
 
 #include "skity/effect/color_filter.hpp"
@@ -33,11 +34,12 @@
 using namespace skity;
 
 TEST(HWPipelineKey, ConvexPath_SolidColor) {
-  Path path;
-  path.MoveTo(10, 10);
-  path.LineTo(100, 100);
-  path.LineTo(200, 10);
-  path.Close();
+  PathBuilder path_builder;
+  path_builder.MoveTo(10, 10);
+  path_builder.LineTo(100, 100);
+  path_builder.LineTo(200, 10);
+  path_builder.Close();
+  Path path = path_builder.Detach();
   Paint paint;
   ArenaAllocator arena_allocator;
   HWDrawContext draw_context;
@@ -60,13 +62,14 @@ TEST(HWPipelineKey, ConvexPath_SolidColor) {
 }
 
 TEST(HWPipelineKey, ConcavePath_SolidColor) {
-  Path path;
-  path.MoveTo(10, 10);
-  path.LineTo(100, 100);
-  path.LineTo(200, 10);
-  path.LineTo(300, 300);
-  path.LineTo(10, 300);
-  path.Close();
+  PathBuilder path_builder;
+  path_builder.MoveTo(10, 10);
+  path_builder.LineTo(100, 100);
+  path_builder.LineTo(200, 10);
+  path_builder.LineTo(300, 300);
+  path_builder.LineTo(10, 300);
+  path_builder.Close();
+  Path path = path_builder.Detach();
   Paint paint;
   ArenaAllocator arena_allocator;
   HWDrawContext draw_context;
@@ -95,11 +98,12 @@ TEST(HWPipelineKey, ConcavePath_SolidColor) {
 }
 
 TEST(HWPipelineKey, StrokePath_SolidColor) {
-  Path path;
-  path.MoveTo(10, 10);
-  path.LineTo(100, 100);
-  path.LineTo(200, 10);
-  path.Close();
+  PathBuilder path_builder;
+  path_builder.MoveTo(10, 10);
+  path_builder.LineTo(100, 100);
+  path_builder.LineTo(200, 10);
+  path_builder.Close();
+  Path path = path_builder.Detach();
   Paint paint;
   ArenaAllocator arena_allocator;
   HWDrawContext draw_context;
@@ -126,11 +130,12 @@ TEST(HWPipelineKey, StrokePath_SolidColor) {
 }
 
 TEST(HWPipelineKey, ConvexPath_SolidColor_AA) {
-  Path path;
-  path.MoveTo(10, 10);
-  path.LineTo(100, 100);
-  path.LineTo(200, 10);
-  path.Close();
+  PathBuilder path_builder;
+  path_builder.MoveTo(10, 10);
+  path_builder.LineTo(100, 100);
+  path_builder.LineTo(200, 10);
+  path_builder.Close();
+  Path path = path_builder.Detach();
   Paint paint;
   paint.SetAntiAlias(true);
   ArenaAllocator arena_allocator;
@@ -168,13 +173,14 @@ TEST(HWPipelineKey, ConvexPath_SolidColor_AA) {
 }
 
 TEST(HWPipelineKey, ConcavePath_SolidColor_AA) {
-  Path path;
-  path.MoveTo(10, 10);
-  path.LineTo(100, 100);
-  path.LineTo(200, 10);
-  path.LineTo(300, 300);
-  path.LineTo(10, 300);
-  path.Close();
+  PathBuilder path_builder;
+  path_builder.MoveTo(10, 10);
+  path_builder.LineTo(100, 100);
+  path_builder.LineTo(200, 10);
+  path_builder.LineTo(300, 300);
+  path_builder.LineTo(10, 300);
+  path_builder.Close();
+  Path path = path_builder.Detach();
   Paint paint;
   paint.SetAntiAlias(true);
   ArenaAllocator arena_allocator;
@@ -212,11 +218,12 @@ TEST(HWPipelineKey, ConcavePath_SolidColor_AA) {
 }
 
 TEST(HWPipelineKey, ConvexPath_SolidColor_GPUTess) {
-  Path path;
-  path.MoveTo(10, 10);
-  path.LineTo(100, 100);
-  path.LineTo(200, 10);
-  path.Close();
+  PathBuilder path_builder;
+  path_builder.MoveTo(10, 10);
+  path_builder.LineTo(100, 100);
+  path_builder.LineTo(200, 10);
+  path_builder.Close();
+  Path path = path_builder.Detach();
   Paint paint;
   ArenaAllocator arena_allocator;
   HWDrawContext draw_context;
@@ -237,13 +244,14 @@ TEST(HWPipelineKey, ConvexPath_SolidColor_GPUTess) {
 }
 
 TEST(HWPipelineKey, ConcavePath_SolidColor_GPUTess) {
-  Path path;
-  path.MoveTo(10, 10);
-  path.LineTo(100, 100);
-  path.LineTo(200, 10);
-  path.LineTo(300, 300);
-  path.LineTo(10, 300);
-  path.Close();
+  PathBuilder path_builder;
+  path_builder.MoveTo(10, 10);
+  path_builder.LineTo(100, 100);
+  path_builder.LineTo(200, 10);
+  path_builder.LineTo(300, 300);
+  path_builder.LineTo(10, 300);
+  path_builder.Close();
+  Path path = path_builder.Detach();
   Paint paint;
   ArenaAllocator arena_allocator;
   HWDrawContext draw_context;
@@ -272,11 +280,12 @@ TEST(HWPipelineKey, ConcavePath_SolidColor_GPUTess) {
 }
 
 TEST(HWPipelineKey, StrokePath_SolidColor_GPUTess) {
-  Path path;
-  path.MoveTo(10, 10);
-  path.LineTo(100, 100);
-  path.LineTo(200, 10);
-  path.Close();
+  PathBuilder path_builder;
+  path_builder.MoveTo(10, 10);
+  path_builder.LineTo(100, 100);
+  path_builder.LineTo(200, 10);
+  path_builder.Close();
+  Path path = path_builder.Detach();
   Paint paint;
   ArenaAllocator arena_allocator;
   HWDrawContext draw_context;
@@ -325,9 +334,10 @@ TEST(HWPipelineKey, StrokeAlwaysUsesDepth) {
       context.arena_allocator = &arena;
       context.total_clip_depth = test.total_depth;
       Paint paint;
-      Path path;
-      path.MoveTo(0, 0);
-      path.LineTo(16, 16);
+      PathBuilder path_builder;
+      path_builder.MoveTo(0, 0);
+      path_builder.LineTo(16, 16);
+      Path path = path_builder.Detach();
       Matrix transform;
       if (test.perspective) {
         transform.SetPersp0(0.001f);
@@ -344,11 +354,12 @@ TEST(HWPipelineKey, StrokeAlwaysUsesDepth) {
 
 // Gradient
 TEST(HWPipelineKey, GradientLinear2OffsetFastColorFast) {
-  Path path;
-  path.MoveTo(10, 10);
-  path.LineTo(100, 100);
-  path.LineTo(200, 10);
-  path.Close();
+  PathBuilder path_builder;
+  path_builder.MoveTo(10, 10);
+  path_builder.LineTo(100, 100);
+  path_builder.LineTo(200, 10);
+  path_builder.Close();
+  Path path = path_builder.Detach();
 
   Point pts[2]{
       {10.f, 10.f, 0.f, 1.f},
@@ -384,11 +395,12 @@ TEST(HWPipelineKey, GradientLinear2OffsetFastColorFast) {
 }
 
 TEST(HWPipelineKey, GradientLinear4OffsetFastColorFast) {
-  Path path;
-  path.MoveTo(10, 10);
-  path.LineTo(100, 100);
-  path.LineTo(200, 10);
-  path.Close();
+  PathBuilder path_builder;
+  path_builder.MoveTo(10, 10);
+  path_builder.LineTo(100, 100);
+  path_builder.LineTo(200, 10);
+  path_builder.Close();
+  Path path = path_builder.Detach();
 
   Point pts[2]{
       {10.f, 10.f, 0.f, 1.f},
@@ -425,11 +437,12 @@ TEST(HWPipelineKey, GradientLinear4OffsetFastColorFast) {
 }
 
 TEST(HWPipelineKey, GradientRadial16) {
-  Path path;
-  path.MoveTo(10, 10);
-  path.LineTo(100, 100);
-  path.LineTo(200, 10);
-  path.Close();
+  PathBuilder path_builder;
+  path_builder.MoveTo(10, 10);
+  path_builder.LineTo(100, 100);
+  path_builder.LineTo(200, 10);
+  path_builder.Close();
+  Path path = path_builder.Detach();
 
   Vec4 colors[11]{
       {0, 0, 0, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {0, 0, 0, 1},
@@ -590,13 +603,14 @@ TEST(HWPipelineKey, RRect_SolidVertex_Compose) {
 }
 
 TEST(HWPipelineKey, StencilStepIgnoresColorBlendOutputs) {
-  Path path;
-  path.MoveTo(10, 10);
-  path.LineTo(100, 100);
-  path.LineTo(200, 10);
-  path.LineTo(300, 300);
-  path.LineTo(10, 300);
-  path.Close();
+  PathBuilder path_builder;
+  path_builder.MoveTo(10, 10);
+  path_builder.LineTo(100, 100);
+  path_builder.LineTo(200, 10);
+  path_builder.LineTo(300, 300);
+  path_builder.LineTo(10, 300);
+  path_builder.Close();
+  Path path = path_builder.Detach();
   Paint paint;
   ArenaAllocator arena_allocator;
   HWDrawContext draw_context;

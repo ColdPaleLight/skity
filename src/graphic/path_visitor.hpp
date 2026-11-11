@@ -46,8 +46,11 @@ class PathVisitor {
   virtual ~PathVisitor() = default;
 
   void VisitPath(Path const& path, bool force_close);
+  void VisitPath(Path::Iter iter, float precision = kPathPrecision);
 
  private:
+  static constexpr float kPathPrecision = 4.f;
+
   void HandleMoveTo(Vec2 const& p);
   void HandleLineTo(Vec2 const& p1, Vec2 const& p2);
   void HandleQuadTo(Vec2 const& p1, Vec2 const& p2, Vec2 const& p3,

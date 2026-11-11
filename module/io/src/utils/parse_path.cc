@@ -246,14 +246,7 @@ std::optional<Path> ParsePath::FromSVGString(const char data[]) {
           builder.ArcTo(
               radii.x, radii.y, angle, static_cast<Path::ArcSize>(largeArc),
               static_cast<Path::Direction>(!sweep), points[0].x, points[0].y);
-          // The next relative command continues from the arc's end point;
-          // re-read it through the C ABI (get_last_pt).
-          skity_path handle = skity::capi::alloc_handle<skity_path_s>(
-              SKITY_OBJECT_TYPE_PATH, 0, builder.Peek());
-          skity_point last_pt{};
-          skity_path_get_last_pt(handle, &last_pt);
-          skity_path_destroy(handle);
-          c = {last_pt.x, last_pt.y};
+          c = builder.GetLastPt();
         }
       } break;
       case 'Z':  // Close Path

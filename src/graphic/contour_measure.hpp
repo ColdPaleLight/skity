@@ -12,6 +12,8 @@
 
 namespace skity {
 
+class PathBuilder;
+
 struct Conic;
 
 class ContourMeasure {
@@ -28,7 +30,7 @@ class ContourMeasure {
 
   bool getPosTan(float distance, Point* position, Vector* tangent) const;
 
-  bool getSegment(float startD, float stopD, Path* dst,
+  bool getSegment(float startD, float stopD, PathBuilder* dst,
                   bool startWithMoveTo) const;
 
   bool isClosed() const { return is_closed_; }

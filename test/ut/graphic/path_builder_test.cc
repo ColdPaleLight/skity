@@ -11,6 +11,7 @@
 #include <skity/graphic/path_builder.hpp>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 namespace {
 using skity::Path;
@@ -53,11 +54,10 @@ void BuildCommands(Target& p) {
   p.SetFillType(Path::PathFillType::kEvenOdd);
 }
 
-TEST(PathBuilder, CommandsMatchLegacyPath) {
-  Path expected;
+TEST(PathBuilder, CommandsAndQueriesMatchFinishedPath) {
   PathBuilder builder;
-  BuildCommands(expected);
   BuildCommands(builder);
+  Path expected = builder.Snapshot();
   EXPECT_EQ(builder.CountPoints(), expected.CountPoints());
   EXPECT_EQ(builder.CountVerbs(), expected.CountVerbs());
   EXPECT_EQ(builder.GetPoint(0), expected.GetPoint2D(0));
@@ -75,44 +75,24 @@ TEST(PathBuilder, Vec2CommandsMatchScalars) {
   b.ConicTo(Vec2{9, 10}, Vec2{11, 12}, 0.5f);
   b.CubicTo(Vec2{13, 14}, Vec2{15, 16}, Vec2{17, 18});
   b.SetLastPt(Vec2{19, 20});
-  Path expected;
+  PathBuilder expected;
   expected.MoveTo(1, 2).LineTo(3, 4).QuadTo(5, 6, 7, 8);
   expected.ConicTo(9, 10, 11, 12, 0.5f).CubicTo(13, 14, 15, 16, 17, 18);
   expected.SetLastPt(19, 20);
-  ExpectSamePath(b.Detach(), expected);
+  ExpectSamePath(b.Detach(), expected.Detach());
 }
 
-TEST(PathBuilder, ShapesAndArcsMatchLegacyPath) {
-  Rect rect{1, 2, 101, 82};
-  skity::RRect rrect;
-  rrect.SetRectXY(rect, 12, 13);
-  auto check = [](auto command) {
-    Path expected;
-    PathBuilder builder;
-    command(expected);
-    command(builder);
-    ExpectSamePath(builder.Detach(), expected);
-  };
+TEST(PathBuilder, ShapeStartIndicesWrap) {
+  const Rect rect{1, 2, 101, 82};
+  const auto rrect = skity::RRect::MakeRectXY(rect, 12, 13);
   for (auto dir : {Path::Direction::kCW, Path::Direction::kCCW}) {
-    for (uint32_t start = 0; start < 24; ++start) {
-      check([&](auto& p) { p.AddRect(rect, dir, start); });
-      check([&](auto& p) { p.AddOval(rect, dir, start); });
-      check([&](auto& p) { p.AddRRect(rrect, dir, start); });
-    }
-    check([&](auto& p) { p.AddRect(1, 2, 101, 82, dir); });
-    check([&](auto& p) { p.AddOval(rect, dir); });
-    check([&](auto& p) { p.AddCircle(50, 40, 20, dir); });
-    check([&](auto& p) { p.AddRoundRect(rect, 12, 13, dir); });
-    check([&](auto& p) { p.AddRRect(rrect, dir); });
-    check([&](auto& p) { p.MoveTo(2, 3).ArcTo(20, 3, 20, 25, 5); });
-    for (auto arc : {Path::kSmall, Path::kLarge}) {
-      check(
-          [&](auto& p) { p.MoveTo(1, 2).ArcTo(20, 15, 30, arc, dir, 40, 30); });
-    }
-  }
-  for (float sweep : {-720.f, -90.f, 0.f, 90.f, 360.f, 720.f}) {
-    for (bool force_move : {false, true}) {
-      check([&](auto& p) { p.ArcTo(rect, 15, sweep, force_move); });
+    for (uint32_t start = 0; start < 8; ++start) {
+      EXPECT_EQ(PathBuilder().AddRect(rect, dir, start).Detach(),
+                PathBuilder().AddRect(rect, dir, start + 4).Detach());
+      EXPECT_EQ(PathBuilder().AddOval(rect, dir, start).Detach(),
+                PathBuilder().AddOval(rect, dir, start + 4).Detach());
+      EXPECT_EQ(PathBuilder().AddRRect(rrect, dir, start).Detach(),
+                PathBuilder().AddRRect(rrect, dir, start + 8).Detach());
     }
   }
 }
@@ -124,7 +104,7 @@ TEST(PathBuilder, SnapshotIsIndependent) {
   Path second = builder.Snapshot();
   ASSERT_NE(first.Points(), second.Points());
   builder.LineTo(30, 40);
-  second.LineTo(50, 60);
+  second = PathBuilder(std::move(second)).LineTo(50, 60).Detach();
   EXPECT_EQ(first.CountVerbs(), 5u);
   EXPECT_EQ(builder.GetPoint(static_cast<int>(builder.CountPoints() - 1)),
             Vec2(30, 40));
@@ -133,9 +113,10 @@ TEST(PathBuilder, SnapshotIsIndependent) {
 }
 
 TEST(PathBuilder, DetachTransfersAllArraysAndResetsSource) {
-  Path original;
-  BuildCommands(original);
-  Path expected = original;
+  PathBuilder commands;
+  BuildCommands(commands);
+  Path expected = commands.Snapshot();
+  Path original = commands.Detach();
   const auto* points = original.Points();
   const auto* verbs = original.VerbsBegin();
   const auto* weights = original.ConicWeights();
@@ -151,10 +132,8 @@ TEST(PathBuilder, DetachTransfersAllArraysAndResetsSource) {
   EXPECT_EQ(builder.GetFillType(), Path::PathFillType::kWinding);
   EXPECT_EQ(builder.GetLastMovePt(), Vec2(0, 0));
   builder.LineTo(8, 9);
-  Path line;
-  line.LineTo(8, 9);
-  ExpectSamePath(builder.Detach(), line);
-  original.LineTo(3, 4);
+  ExpectSamePath(builder.Detach(), PathBuilder().LineTo(8, 9).Detach());
+  original = PathBuilder().LineTo(3, 4).Detach();
   EXPECT_EQ(original.GetPoint2D(0), Vec2(0, 0));
 }
 
@@ -202,14 +181,11 @@ TEST(PathBuilder, MovePreservesValues) {
   a = std::move(*same);
   ExpectSamePath(a.Detach(), expected);
   b.LineTo(5, 6);
-  Path line;
-  line.LineTo(5, 6);
-  ExpectSamePath(b.Detach(), line);
+  ExpectSamePath(b.Detach(), PathBuilder().LineTo(5, 6).Detach());
 }
 
 TEST(PathBuilder, ImportedConvexityIsInvalidated) {
-  Path source;
-  source.AddRect({0, 0, 10, 10});
+  Path source = PathBuilder().AddRect({0, 0, 10, 10}).Detach();
   ASSERT_TRUE(source.IsConvex());
   PathBuilder copied(source);
   PathBuilder moved(std::move(source));
@@ -220,33 +196,32 @@ TEST(PathBuilder, ImportedConvexityIsInvalidated) {
 }
 
 TEST(PathBuilder, ImportAndAppendPreserveLegacyComponents) {
-  Path original;
-  BuildCommands(original);
+  PathBuilder commands;
+  BuildCommands(commands);
   skity::Matrix transform;
   transform.Set(2, 3, 3);
   transform.Set(3, 3, 2);
-  Path source = original.CopyWithMatrix(transform);
+  Path source = commands.Detach().CopyWithMatrix(transform);
   PathBuilder imported(source);
   ExpectSamePath(imported.Detach(), source);
-  for (auto mode : {Path::AddMode::kAppend, Path::AddMode::kExtend}) {
-    PathBuilder builder;
-    Path expected;
-    builder.MoveTo(4, 5);
-    expected.MoveTo(4, 5);
-    builder.AddPath(source, mode)
-        .AddPath(source, 7, 8, mode)
-        .AddPath(source, transform, mode);
-    expected.AddPath(source, mode)
-        .AddPath(source, 7, 8, mode)
-        .AddPath(source, transform, mode);
-    ExpectSamePath(builder.Detach(), expected);
+  const Path appended = PathBuilder()
+                            .MoveTo(4, 5)
+                            .AddPath(source)
+                            .AddPath(source, transform)
+                            .Detach();
+  ASSERT_EQ(appended.CountPoints(), 1 + 2 * source.CountPoints());
+  for (size_t i = 0; i < source.CountPoints(); ++i) {
+    EXPECT_EQ(appended.GetPoint(1 + i), source.GetPoint(i));
+    EXPECT_EQ(appended.GetPoint(1 + source.CountPoints() + i),
+              transform * source.GetPoint(i));
   }
 }
 
 TEST(PathBuilder, TransformMatchesLegacyAndKeepsBuffers) {
-  Path source;
-  source.AddRoundRect({0, 0, 100, 80}, 10, 15);
-  source.SetFillType(Path::PathFillType::kEvenOdd);
+  Path source = PathBuilder()
+                    .AddRoundRect({0, 0, 100, 80}, 10, 15)
+                    .SetFillType(Path::PathFillType::kEvenOdd)
+                    .Detach();
   const Rect original_bounds = source.GetBounds();
   const auto* points = source.Points();
   const auto* verbs = source.VerbsBegin();
@@ -257,7 +232,10 @@ TEST(PathBuilder, TransformMatchesLegacyAndKeepsBuffers) {
   first.Set(3, 1, 0.125f);
   skity::Matrix second = skity::Matrix::Translate(2, 3);
   second.Set(0, 2, 1.5f);
-  Path expected = source.CopyWithMatrix(first).CopyWithMatrix(second);
+  std::vector<skity::Point> expected;
+  for (size_t i = 0; i < source.CountPoints(); ++i) {
+    expected.push_back(second * (first * source.GetPoint(i)));
+  }
 
   PathBuilder builder(std::move(source));
   builder.Transform(first).Transform(second);
@@ -266,7 +244,12 @@ TEST(PathBuilder, TransformMatchesLegacyAndKeepsBuffers) {
   EXPECT_EQ(transformed.Points(), points);
   EXPECT_EQ(transformed.VerbsBegin(), verbs);
   EXPECT_EQ(transformed.ConicWeights(), weights);
-  ExpectSamePath(transformed, expected);
+  EXPECT_EQ(transformed.GetFillType(), Path::PathFillType::kEvenOdd);
+  EXPECT_EQ(transformed.GetIsAType(), Path::IsAType::kGeneral);
+  ASSERT_EQ(transformed.CountPoints(), expected.size());
+  for (size_t i = 0; i < expected.size(); ++i) {
+    EXPECT_EQ(transformed.GetPoint(i), expected[i]);
+  }
 }
 
 TEST(PathBuilder, CurrentPointFollowsTheLastContour) {
@@ -284,8 +267,7 @@ TEST(PathBuilder, CurrentPointFollowsTheLastContour) {
   ASSERT_TRUE(builder.GetLastPt(&point));
   EXPECT_EQ(point, Vec2(3, 4));
 
-  Path contour;
-  contour.MoveTo(5, 6).LineTo(7, 8).Close();
+  Path contour = PathBuilder().MoveTo(5, 6).LineTo(7, 8).Close().Detach();
   builder.AddPath(contour);
   ASSERT_TRUE(builder.GetCurrentPoint(&point));
   EXPECT_EQ(point, Vec2(5, 6));
@@ -296,45 +278,44 @@ TEST(PathBuilder, CurrentPointFollowsTheLastContour) {
   EXPECT_FALSE(builder.Reset().GetCurrentPoint(nullptr));
 }
 
-TEST(Path, SwapCompleteValue) {
-  Path a, b;
-  a.AddRoundRect({0, 0, 100, 80}, 12, 14, Path::Direction::kCCW);
-  a.SetFillType(Path::PathFillType::kEvenOdd);
-  b.AddOval({20, 30, 50, 70}, Path::Direction::kCW);
-  ASSERT_TRUE(a.IsConvex());
-  ASSERT_TRUE(b.IsConvex());
-  Path old_a = a, old_b = b;
-  a.Swap(b);
-  ExpectSamePath(a, old_b);
-  ExpectSamePath(b, old_a);
-  a.LineTo(120, 130);
-  old_b.LineTo(120, 130);
-  EXPECT_EQ(a, old_b);
-  b.Swap(b);
-  ExpectSamePath(b, old_a);
-  Path non_finite;
-  non_finite.LineTo(1, 2).MoveTo(std::numeric_limits<float>::infinity(), 1);
-  ASSERT_FALSE(non_finite.IsFinite());
-  b.Swap(non_finite);
-  EXPECT_FALSE(b.IsFinite());
-  EXPECT_TRUE(non_finite.IsFinite());
-  ExpectSamePath(non_finite, old_a);
+TEST(Path, SharesGeometryWithCopiesAndFillVariants) {
+  Path path = PathBuilder().AddRect({0, 0, 100, 80}).Detach();
+  Path copy = path;
+  Path even_odd = path.WithFillType(Path::PathFillType::kEvenOdd);
+  EXPECT_EQ(path.Points(), copy.Points());
+  EXPECT_EQ(path.Points(), even_odd.Points());
+  EXPECT_EQ(path, copy);
+  EXPECT_NE(path, even_odd);
+
+  PathBuilder editor(std::move(path));
+  editor.LineTo(120, 130);
+  Path edited = editor.Detach();
+  EXPECT_TRUE(path.IsEmpty());
+  EXPECT_NE(edited.Points(), copy.Points());
+  EXPECT_EQ(copy.CountPoints(), 4u);
+  EXPECT_EQ(even_odd.CountPoints(), 4u);
+  EXPECT_EQ(copy.GetFillType(), Path::PathFillType::kWinding);
+  EXPECT_EQ(even_odd.GetFillType(), Path::PathFillType::kEvenOdd);
 }
 
 TEST(Path, StrokePreservesDestinationFillType) {
-  Path source;
-  source.MoveTo(1, 2).LineTo(30, 40).QuadTo(50, 5, 60, 40).Close();
+  Path source = PathBuilder()
+                    .MoveTo(1, 2)
+                    .LineTo(30, 40)
+                    .QuadTo(50, 5, 60, 40)
+                    .Close()
+                    .Detach();
   skity::Paint paint;
   paint.SetStrokeWidth(4);
   skity::Stroke stroke(paint);
   Path winding, even_odd;
-  even_odd.SetFillType(Path::PathFillType::kEvenOdd);
+  even_odd = even_odd.WithFillType(Path::PathFillType::kEvenOdd);
   stroke.StrokePath(source, &winding);
   stroke.StrokePath(source, &even_odd);
   ASSERT_FALSE(winding.IsEmpty());
   EXPECT_EQ(even_odd.GetFillType(), Path::PathFillType::kEvenOdd);
   EXPECT_EQ(winding.GetFillType(), Path::PathFillType::kWinding);
-  even_odd.SetFillType(Path::PathFillType::kWinding);
+  even_odd = even_odd.WithFillType(Path::PathFillType::kWinding);
   ExpectSamePath(winding, even_odd);
 }
 }  // namespace

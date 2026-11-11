@@ -4,6 +4,7 @@
 
 #include "case/contour_aa/contour_aa_example.hpp"
 
+#include <skity/graphic/path_builder.hpp>
 #include <skity/skity.hpp>
 
 namespace skity::example::contour::aa {
@@ -14,11 +15,12 @@ static void fill_convex_path(skity::Canvas* canvas) {
   paint.SetStyle(skity::Paint::kFill_Style);
   paint.SetAntiAlias(false);
 
-  skity::Path path;
-  path.MoveTo(30.0f, 80.0f);
-  path.LineTo(120.0f, 150.0f);
-  path.LineTo(100.0f, 20.0f);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(30.0f, 80.0f);
+  path_builder.LineTo(120.0f, 150.0f);
+  path_builder.LineTo(100.0f, 20.0f);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
   canvas->DrawPath(path, paint);
 
   canvas->Translate(150, 0);
@@ -32,12 +34,13 @@ static void fill_concave_path(skity::Canvas* canvas) {
   paint.SetStyle(skity::Paint::kFill_Style);
   paint.SetAntiAlias(false);
 
-  skity::Path path;
-  path.MoveTo(30.0f, 80.0f);
-  path.LineTo(120.0f, 20.0f);
-  path.LineTo(080.0f, 75.0f);
-  path.LineTo(120.0f, 150.0f);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(30.0f, 80.0f);
+  path_builder.LineTo(120.0f, 20.0f);
+  path_builder.LineTo(080.0f, 75.0f);
+  path_builder.LineTo(120.0f, 150.0f);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
   canvas->DrawPath(path, paint);
 
   canvas->Translate(150, 0);
@@ -51,12 +54,13 @@ static void fill_self_intersection_path(skity::Canvas* canvas) {
   paint.SetStyle(skity::Paint::kFill_Style);
   paint.SetAntiAlias(false);
 
-  skity::Path path;
-  path.MoveTo(30.0f, 30.0f);
-  path.LineTo(120.0f, 30.0f);
-  path.LineTo(30.0f, 130.0f);
-  path.LineTo(130.0f, 130.0f);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(30.0f, 30.0f);
+  path_builder.LineTo(120.0f, 30.0f);
+  path_builder.LineTo(30.0f, 130.0f);
+  path_builder.LineTo(130.0f, 130.0f);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
   canvas->DrawPath(path, paint);
 
   canvas->Translate(150, 0);
@@ -70,11 +74,12 @@ static void fill_acute_path(skity::Canvas* canvas) {
   paint.SetStyle(skity::Paint::kFill_Style);
   paint.SetAntiAlias(false);
 
-  skity::Path path;
-  path.MoveTo(30.0f, 30.0f);
-  path.LineTo(140.0f, 32.0f);
-  path.LineTo(30.0f, 34.0f);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(30.0f, 30.0f);
+  path_builder.LineTo(140.0f, 32.0f);
+  path_builder.LineTo(30.0f, 34.0f);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
   canvas->DrawPath(path, paint);
 
   canvas->Translate(150, 0);
@@ -88,36 +93,37 @@ void fill_even_odd_fill(skity::Canvas* canvas) {
   paint.SetColor(skity::ColorSetA(skity::Color_RED, 64));
   paint.SetAntiAlias(false);
 
-  skity::Path path;
-  path.MoveTo(100, 10);
-  path.LineTo(40, 180);
-  path.LineTo(190, 60);
-  path.LineTo(10, 60);
-  path.LineTo(160, 180);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(100, 10);
+  path_builder.LineTo(40, 180);
+  path_builder.LineTo(190, 60);
+  path_builder.LineTo(10, 60);
+  path_builder.LineTo(160, 180);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
 
-  path.SetFillType(skity::Path::PathFillType::kWinding);
+  path = path.WithFillType(skity::Path::PathFillType::kWinding);
   canvas->DrawPath(path, paint);
 
   canvas->Save();
   canvas->Translate(200, 0);
   paint.SetAntiAlias(false);
 
-  path.SetFillType(skity::Path::PathFillType::kEvenOdd);
+  path = path.WithFillType(skity::Path::PathFillType::kEvenOdd);
   canvas->DrawPath(path, paint);
   canvas->Restore();
 
   canvas->Save();
   canvas->Translate(0, 200);
   paint.SetAntiAlias(true);
-  path.SetFillType(skity::Path::PathFillType::kWinding);
+  path = path.WithFillType(skity::Path::PathFillType::kWinding);
   canvas->DrawPath(path, paint);
   canvas->Restore();
 
   canvas->Save();
   canvas->Translate(200, 200);
   paint.SetAntiAlias(true);
-  path.SetFillType(skity::Path::PathFillType::kEvenOdd);
+  path = path.WithFillType(skity::Path::PathFillType::kEvenOdd);
   canvas->DrawPath(path, paint);
   canvas->Restore();
 }
@@ -128,15 +134,16 @@ void fill_even_odd_fill_with_clip(skity::Canvas* canvas) {
   paint.SetColor(skity::ColorSetA(skity::Color_RED, 64));
   paint.SetAntiAlias(true);
 
-  skity::Path path;
-  path.MoveTo(100, 10);
-  path.LineTo(40, 180);
-  path.LineTo(190, 60);
-  path.LineTo(10, 60);
-  path.LineTo(160, 180);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(100, 10);
+  path_builder.LineTo(40, 180);
+  path_builder.LineTo(190, 60);
+  path_builder.LineTo(10, 60);
+  path_builder.LineTo(160, 180);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
 
-  path.SetFillType(skity::Path::PathFillType::kWinding);
+  path = path.WithFillType(skity::Path::PathFillType::kWinding);
 
   canvas->Save();
   canvas->ClipRect(skity::Rect::MakeXYWH(0, 10, 80, 200));
@@ -146,7 +153,7 @@ void fill_even_odd_fill_with_clip(skity::Canvas* canvas) {
   canvas->Save();
   canvas->Translate(200, 0);
   paint.SetAntiAlias(true);
-  path.SetFillType(skity::Path::PathFillType::kEvenOdd);
+  path = path.WithFillType(skity::Path::PathFillType::kEvenOdd);
   canvas->ClipRect(skity::Rect::MakeXYWH(0, 10, 100, 200));
   canvas->DrawPath(path, paint);
   canvas->Restore();
@@ -159,11 +166,12 @@ static void stroke_convex_path(skity::Canvas* canvas) {
   paint.SetStrokeWidth(2.0f);
   paint.SetAntiAlias(false);
 
-  skity::Path path;
-  path.MoveTo(30.0f, 80.0f);
-  path.LineTo(100.0f, 20.0f);
-  path.LineTo(120.0f, 150.0f);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(30.0f, 80.0f);
+  path_builder.LineTo(100.0f, 20.0f);
+  path_builder.LineTo(120.0f, 150.0f);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
   canvas->DrawPath(path, paint);
 
   canvas->Translate(150, 0);
@@ -177,12 +185,13 @@ static void stroke_concave_path(skity::Canvas* canvas) {
   paint.SetStyle(skity::Paint::kStroke_Style);
   paint.SetAntiAlias(false);
 
-  skity::Path path;
-  path.MoveTo(30.0f, 80.0f);
-  path.LineTo(120.0f, 20.0f);
-  path.LineTo(080.0f, 75.0f);
-  path.LineTo(120.0f, 150.0f);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(30.0f, 80.0f);
+  path_builder.LineTo(120.0f, 20.0f);
+  path_builder.LineTo(080.0f, 75.0f);
+  path_builder.LineTo(120.0f, 150.0f);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
   canvas->DrawPath(path, paint);
 
   canvas->Translate(150, 0);
@@ -196,12 +205,13 @@ static void stroke_self_intersection_path(skity::Canvas* canvas) {
   paint.SetStyle(skity::Paint::kStroke_Style);
   paint.SetAntiAlias(false);
 
-  skity::Path path;
-  path.MoveTo(30.0f, 30.0f);
-  path.LineTo(120.0f, 30.0f);
-  path.LineTo(30.0f, 130.0f);
-  path.LineTo(130.0f, 130.0f);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(30.0f, 30.0f);
+  path_builder.LineTo(120.0f, 30.0f);
+  path_builder.LineTo(30.0f, 130.0f);
+  path_builder.LineTo(130.0f, 130.0f);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
   canvas->DrawPath(path, paint);
 
   canvas->Translate(150, 0);
@@ -215,11 +225,12 @@ static void stroke_acute_path(skity::Canvas* canvas) {
   paint.SetStyle(skity::Paint::kStroke_Style);
   paint.SetAntiAlias(false);
 
-  skity::Path path;
-  path.MoveTo(30.0f, 30.0f);
-  path.LineTo(140.0f, 32.0f);
-  path.LineTo(30.0f, 34.0f);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(30.0f, 30.0f);
+  path_builder.LineTo(140.0f, 32.0f);
+  path_builder.LineTo(30.0f, 34.0f);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
   canvas->DrawPath(path, paint);
 
   canvas->Translate(150, 0);

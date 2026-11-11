@@ -8,6 +8,7 @@
 
 #include <cmath>
 #include <limits>
+#include <skity/graphic/path_builder.hpp>
 #include <vector>
 
 #include "src/geometry/cubic.hpp"
@@ -252,16 +253,18 @@ class CountingPathVisitor : public skity::PathVisitor {
 
 TEST(CurveSegmentLimit, PathVisitorBoundsLargeCurves) {
   CountingPathVisitor visitor;
-  skity::Path quad;
-  quad.MoveTo(0, 0);
-  quad.QuadTo(0, 1.e20f, 10, 0);
+  skity::PathBuilder quad_builder;
+  quad_builder.MoveTo(0, 0);
+  quad_builder.QuadTo(0, 1.e20f, 10, 0);
+  skity::Path quad = quad_builder.Detach();
   visitor.VisitPath(quad, false);
   EXPECT_EQ(visitor.segments, 256);
   EXPECT_EQ(visitor.end, (skity::Vec2{10, 0}));
 
-  skity::Path cubic;
-  cubic.MoveTo(0, 0);
-  cubic.CubicTo(0, 1.e20f, 1.e20f, 0, 10, 0);
+  skity::PathBuilder cubic_builder;
+  cubic_builder.MoveTo(0, 0);
+  cubic_builder.CubicTo(0, 1.e20f, 1.e20f, 0, 10, 0);
+  skity::Path cubic = cubic_builder.Detach();
   visitor.VisitPath(cubic, false);
   EXPECT_EQ(visitor.segments, 256);
   EXPECT_EQ(visitor.end, (skity::Vec2{10, 0}));

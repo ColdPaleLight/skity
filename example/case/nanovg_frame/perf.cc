@@ -6,6 +6,7 @@
 
 #include <cstdio>
 #include <skity/graphic/paint.hpp>
+#include <skity/graphic/path_builder.hpp>
 
 #ifndef GL_ARB_timer_query
 #define GL_TIME_ELAPSED 0x88BF
@@ -46,8 +47,8 @@ void Perf::RenderGraph(skity::Canvas *canvas, float x, float y) {
   skity::Rect rect = skity::Rect::MakeXYWH(x, y, w, h);
   canvas->DrawRect(rect, paint);
 
-  skity::Path path;
-  path.MoveTo(x, y + h);
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(x, y + h);
   if (style_ == GRAPH_RENDER_FPS) {
     for (size_t i = 0; i < values_.size(); i++) {
       float v = 1.f / (0.00001f + values_[(head_ + i) % GRAPH_HISTORY_COUNT]);
@@ -57,7 +58,7 @@ void Perf::RenderGraph(skity::Canvas *canvas, float x, float y) {
       }
       vx = x + ((float)i / (GRAPH_HISTORY_COUNT - 1)) * w;
       vy = y + h - ((v / 80.f) * h);
-      path.LineTo(vx, vy);
+      path_builder.LineTo(vx, vy);
     }
   } else if (style_ == GRAPH_RENDER_PERCENT) {
     for (size_t i = 0; i < values_.size(); i++) {
@@ -68,7 +69,7 @@ void Perf::RenderGraph(skity::Canvas *canvas, float x, float y) {
       }
       vx = x + ((float)i / (GRAPH_HISTORY_COUNT - 1)) * w;
       vy = y + h - ((v / 100.0f) * h);
-      path.LineTo(vx, vy);
+      path_builder.LineTo(vx, vy);
     }
   } else {
     for (size_t i = 0; i < values_.size(); i++) {
@@ -79,12 +80,13 @@ void Perf::RenderGraph(skity::Canvas *canvas, float x, float y) {
       }
       vx = x + ((float)i / (GRAPH_HISTORY_COUNT - 1)) * w;
       vy = y + h - ((v / 20.0f) * h);
-      path.LineTo(vx, vy);
+      path_builder.LineTo(vx, vy);
     }
   }
 
-  path.LineTo(x + w, y + h);
-  path.Close();
+  path_builder.LineTo(x + w, y + h);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
   paint.SetColor(skity::ColorSetARGB(128, 255, 192, 0));
   canvas->DrawPath(path, paint);
 

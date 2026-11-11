@@ -11,6 +11,7 @@
 #include <skity/graphic/blend_mode.hpp>
 #include <skity/graphic/color.hpp>
 #include <skity/graphic/paint.hpp>
+#include <skity/graphic/path_builder.hpp>
 #include <skity/recorder/picture_recorder.hpp>
 #include <string_view>
 
@@ -700,8 +701,9 @@ static void DrawBlendModeClipReplay(skity::Canvas* canvas) {
   paint.SetColor(skity::ColorSetARGB(255, 233, 30, 99));
   canvas->DrawRect(skity::Rect::MakeLTRB(12.f, 12.f, 116.f, 116.f), paint);
 
-  skity::Path clip_path;
-  clip_path.AddCircle(64.f, 64.f, 38.f);
+  skity::PathBuilder clip_path_builder;
+  clip_path_builder.AddCircle(64.f, 64.f, 38.f);
+  skity::Path clip_path = clip_path_builder.Detach();
   canvas->ClipPath(clip_path, skity::Canvas::ClipOp::kIntersect);
 
   paint.SetBlendMode(skity::BlendMode::kOverlay);
@@ -722,8 +724,9 @@ static void DrawBlendModeRestoredClipPathTextureCopy(skity::Canvas* canvas) {
   canvas->DrawRect(skity::Rect::MakeLTRB(12.f, 12.f, 116.f, 116.f), paint);
 
   canvas->Save();
-  skity::Path clip_path;
-  clip_path.AddCircle(38.f, 38.f, 22.f);
+  skity::PathBuilder clip_path_builder;
+  clip_path_builder.AddCircle(38.f, 38.f, 22.f);
+  skity::Path clip_path = clip_path_builder.Detach();
   canvas->ClipPath(clip_path, skity::Canvas::ClipOp::kIntersect);
 
   paint.SetBlendMode(skity::BlendMode::kSrcOver);
@@ -774,8 +777,9 @@ static void DrawBlendModeSaveLayerClipReplay(skity::Canvas* canvas) {
   paint.SetColor(skity::ColorSetARGB(255, 233, 30, 99));
   canvas->DrawRect(skity::Rect::MakeLTRB(12.f, 12.f, 116.f, 116.f), paint);
 
-  skity::Path clip_path;
-  clip_path.AddCircle(64.f, 64.f, 38.f);
+  skity::PathBuilder clip_path_builder;
+  clip_path_builder.AddCircle(64.f, 64.f, 38.f);
+  skity::Path clip_path = clip_path_builder.Detach();
   canvas->ClipPath(clip_path, skity::Canvas::ClipOp::kIntersect);
 
   paint.SetBlendMode(skity::BlendMode::kOverlay);

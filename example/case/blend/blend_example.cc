@@ -4,6 +4,7 @@
 
 #include "case/blend/blend_example.hpp"
 
+#include <skity/graphic/path_builder.hpp>
 #include <skity/skity.hpp>
 
 #include "common/app_utils.hpp"
@@ -44,12 +45,13 @@ static void draw_basic_example(skity::Canvas* canvas) {
 // same as https://fiddle.skia.org/c/@discrete_path
 static void draw_path_effect_example(skity::Canvas* canvas) {
   const float R = 115.2f, C = 128.f;
-  skity::Path path;
-  path.MoveTo(C + R, C);
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(C + R, C);
   for (int32_t i = 1; i < 8; i++) {
     float a = 2.6927937f * i;
-    path.LineTo(C + R * std::cos(a), C + R * std::sin(a));
+    path_builder.LineTo(C + R * std::cos(a), C + R * std::sin(a));
   }
+  skity::Path path = path_builder.Detach();
 
   skity::Paint paint;
   paint.SetBlendMode(g_blend_mode);
@@ -62,18 +64,19 @@ static void draw_path_effect_example(skity::Canvas* canvas) {
 }
 
 static void draw_dash_start_example(skity::Canvas* canvas) {
-  skity::Path path;
-  path.MoveTo(199, 34);
-  path.LineTo(253, 143);
-  path.LineTo(374, 160);
-  path.LineTo(287, 244);
-  path.LineTo(307, 365);
-  path.LineTo(199, 309);
-  path.LineTo(97, 365);
-  path.LineTo(112, 245);
-  path.LineTo(26, 161);
-  path.LineTo(146, 143);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(199, 34);
+  path_builder.LineTo(253, 143);
+  path_builder.LineTo(374, 160);
+  path_builder.LineTo(287, 244);
+  path_builder.LineTo(307, 365);
+  path_builder.LineTo(199, 309);
+  path_builder.LineTo(97, 365);
+  path_builder.LineTo(112, 245);
+  path_builder.LineTo(26, 161);
+  path_builder.LineTo(146, 143);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
 
   skity::Paint paint;
   paint.SetBlendMode(g_blend_mode);
@@ -172,8 +175,9 @@ static void draw_linear_gradient_example(skity::Canvas* canvas) {
     auto r = skity::Rect::MakeLTRB(blockX, blockY, blockX + 100, blockY + 100);
     canvas->DrawRect(r, p);
   }
-  skity::Path circle;
-  circle.AddCircle(220, 300, 100);
+  skity::PathBuilder circle_builder;
+  circle_builder.AddCircle(220, 300, 100);
+  skity::Path circle = circle_builder.Detach();
   skity::Paint paint;
   paint.SetStyle(skity::Paint::kFill_Style);
   paint.SetAntiAlias(true);
@@ -207,18 +211,19 @@ void draw_clip_difference(skity::Canvas* canvas) {
   canvas->ClipRect(clip_outer_rect);
   canvas->ClipRect(clip_inner_rect, skity::Canvas::ClipOp::kDifference);
 
-  skity::Path path;
-  path.MoveTo(199, 34);
-  path.LineTo(253, 143);
-  path.LineTo(374, 160);
-  path.LineTo(287, 244);
-  path.LineTo(307, 365);
-  path.LineTo(199, 309);
-  path.LineTo(97, 365);
-  path.LineTo(112, 245);
-  path.LineTo(26, 161);
-  path.LineTo(146, 143);
-  path.Close();
+  skity::PathBuilder path_builder;
+  path_builder.MoveTo(199, 34);
+  path_builder.LineTo(253, 143);
+  path_builder.LineTo(374, 160);
+  path_builder.LineTo(287, 244);
+  path_builder.LineTo(307, 365);
+  path_builder.LineTo(199, 309);
+  path_builder.LineTo(97, 365);
+  path_builder.LineTo(112, 245);
+  path_builder.LineTo(26, 161);
+  path_builder.LineTo(146, 143);
+  path_builder.Close();
+  skity::Path path = path_builder.Detach();
 
   skity::Paint paint;
   paint.SetStyle(skity::Paint::kFill_Style);
@@ -282,11 +287,12 @@ static void draw_pipeline_family(
         skity::Canvas::ClipOp::kIntersect);
   }
   if (path) {
-    skity::Path dpath;
-    dpath.MoveTo(wh * 0.5, wh * 0.125);
-    dpath.LineTo(wh * 0.125, wh * 0.875);
-    dpath.LineTo(wh * 0.875, wh * 0.875);
-    dpath.Close();
+    skity::PathBuilder dpath_builder;
+    dpath_builder.MoveTo(wh * 0.5, wh * 0.125);
+    dpath_builder.LineTo(wh * 0.125, wh * 0.875);
+    dpath_builder.LineTo(wh * 0.875, wh * 0.875);
+    dpath_builder.Close();
+    skity::Path dpath = dpath_builder.Detach();
     canvas->DrawPath(dpath, src_paint);
   } else if (round_rect) {
     src_paint.SetStrokeColor(0, 1, 0, 1);

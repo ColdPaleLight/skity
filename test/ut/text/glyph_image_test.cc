@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
+#include <skity/graphic/path_builder.hpp>
 #include <thread>
 #include <utility>
 
@@ -53,7 +54,8 @@ class ImageTestScalerContext final : public ScalerContext {
   void GenerateImageInfo(PackedGlyphID, GlyphData*,
                          const StrokeDesc&) override {}
   bool GeneratePath(GlyphData* glyph) override {
-    const_cast<Path&>(glyph->GetPath()).AddRect(0.f, 0.f, 3.f, 2.f);
+    const_cast<Path&>(glyph->GetPath()) =
+        PathBuilder().AddRect(0.f, 0.f, 3.f, 2.f).Detach();
     return true;
   }
   void GenerateFontMetrics(FontMetrics* metrics) override { *metrics = {}; }
@@ -148,7 +150,7 @@ TEST(GlyphImageTest, MovesPreservePathStorageAndPixelOwnership) {
   const auto* points = first.Get()->GetPath().Points();
   auto* pixels = first.Image().buffer;
   ASSERT_GT(first.Get()->GetPath().CountPoints(), 0u);
-  EXPECT_NE(points, cached->GetPath().Points());
+  EXPECT_EQ(points, cached->GetPath().Points());
   auto moved = std::move(first);
   EXPECT_EQ(first.Get(), nullptr);
   EXPECT_EQ(moved.Get()->GetPath().Points(), points);
