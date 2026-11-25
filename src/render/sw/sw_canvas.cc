@@ -772,7 +772,7 @@ std::unique_ptr<SWSpanBrush> SWCanvas::GenerateBrush(
 
       return GradientColorBrush::MakeGradientColorBrush(
           spans, bitmap_, paint.GetColorFilter().get(), paint.GetBlendMode(),
-          info, type, device_to_local);
+          paint.GetAlphaF(), info, type, device_to_local);
     } else if (image_ptr) {
       const auto& image = *image_ptr;
       assert(image->GetPixmap());

@@ -4,6 +4,7 @@
 
 #include <gtest/gtest.h>
 
+#include <skity/effect/shader.hpp>
 #include <skity/graphic/bitmap.hpp>
 #include <skity/graphic/color.hpp>
 #include <skity/graphic/paint.hpp>
@@ -219,4 +220,59 @@ TEST(SWCanvas, ScreenKeepsOpaqueDestinationAcrossSpan) {
   for (uint32_t x = 0; x < bitmap.Width(); ++x) {
     EXPECT_EQ(bitmap.GetPixel(x, 0), skity::ColorSetARGB(255, 243, 64, 128));
   }
+}
+
+TEST(SWCanvas, GradientRespectsInterpolationFlagsAndPaintAlpha) {
+  const skity::Point points[] = {{0, 0, 0, 1}, {1, 0, 0, 1}};
+  const skity::Color4f colors[] = {{1, 0.25f, 0, 1}, {0, 0.25f, 1, 0}};
+  for (int flags : {0, 1}) {
+    SCOPED_TRACE(flags);
+    skity::Bitmap bitmap(1, 2, skity::kPremul_AlphaType);
+    auto canvas = skity::Canvas::MakeSoftwareCanvas(&bitmap);
+    canvas->Clear(skity::Color_TRANSPARENT);
+    skity::Paint paint;
+    paint.SetAlphaF(0.5f);
+    paint.SetAntiAlias(true);
+    paint.SetShader(skity::Shader::MakeLinear(points, colors, nullptr, 2,
+                                              skity::TileMode::kClamp, flags));
+    canvas->DrawRect(skity::Rect::MakeWH(1, 1.5f), paint);
+    auto sample = bitmap.GetPixel(0, 0);
+    EXPECT_EQ(ColorGetA(sample), 63);
+    EXPECT_EQ(ColorGetR(sample), flags ? 63 : 31);
+    // In both modes, green is 1/16 before conversion to 8 bits.
+    EXPECT_EQ(ColorGetG(sample), 15);
+    EXPECT_EQ(ColorGetB(sample), flags ? 0 : 31);
+    EXPECT_NEAR(ColorGetA(bitmap.GetPixel(0, 1)), 32, 1);
+  }
+}
+
+TEST(SWCanvas, LinearGradientChoosesRightColorAtInteriorHardStop) {
+  skity::Bitmap bitmap(3, 1, skity::kPremul_AlphaType);
+  auto canvas = skity::Canvas::MakeSoftwareCanvas(&bitmap);
+  const skity::Point points[] = {{-0.5f, 0, 0, 1}, {3.5f, 0, 0, 1}};
+  const skity::Color4f colors[] = {skity::Colors::kRed, skity::Colors::kRed,
+                                   skity::Colors::kBlue, skity::Colors::kBlue};
+  const float stops[] = {0.f, 0.5f, 0.5f, 1.f};
+  skity::Paint paint;
+  paint.SetShader(skity::Shader::MakeLinear(points, colors, stops, 4));
+  canvas->DrawPaint(paint);
+  EXPECT_EQ(bitmap.GetPixel(0, 0), skity::Color_RED);
+  EXPECT_EQ(bitmap.GetPixel(1, 0), skity::Color_BLUE);
+  EXPECT_EQ(bitmap.GetPixel(2, 0), skity::Color_BLUE);
+}
+
+TEST(SWCanvas, PremultipliedGradientClampsAfterInterpolation) {
+  skity::Bitmap bitmap(2, 1, skity::kPremul_AlphaType);
+  auto canvas = skity::Canvas::MakeSoftwareCanvas(&bitmap);
+  canvas->Clear(skity::Color_TRANSPARENT);
+  const skity::Point points[] = {{0, 0, 0, 1}, {2, 0, 0, 1}};
+  const skity::Color4f colors[] = {{2, 0, 0, 0.5f}, {0, 0, 0, 0.5f}};
+  skity::Paint paint;
+  paint.SetAlphaF(0.5f);
+  paint.SetShader(skity::Shader::MakeLinear(points, colors, nullptr, 2,
+                                            skity::TileMode::kClamp, 1));
+  canvas->DrawPaint(paint);
+  // Red is 0.75 and 0.25 before clamping to A = 0.5 and applying paint alpha.
+  EXPECT_EQ(bitmap.GetPixel(0, 0), skity::ColorSetARGB(63, 63, 0, 0));
+  EXPECT_EQ(bitmap.GetPixel(1, 0), skity::ColorSetARGB(63, 31, 0, 0));
 }

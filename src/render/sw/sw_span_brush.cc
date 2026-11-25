@@ -4,6 +4,7 @@
 
 #include "src/render/sw/sw_span_brush.hpp"
 
+#include <algorithm>
 #include <skity/effect/color_filter.hpp>
 #include <skity/graphic/bitmap.hpp>
 
@@ -218,14 +219,38 @@ Matrix PointsToUnit(const Point& p0, const Point& p1) {
          Matrix::Translate(-start.x, -start.y);
 }
 
+Color4f Premultiply(const Color4f& color) {
+  return {color.r * color.a, color.g * color.a, color.b * color.a, color.a};
+}
+
 }  // namespace
 
-GradientColorBrush::GradientColorBrush(
-    std::vector<Span> const& spans, Bitmap* bitmap, ColorFilter* color_filter,
-    BlendMode blend, Shader::GradientInfo info, Shader::GradientType type)
+GradientColorBrush::GradientColorBrush(std::vector<Span> const& spans,
+                                       Bitmap* bitmap,
+                                       ColorFilter* color_filter,
+                                       BlendMode blend, float paint_alpha,
+                                       Shader::GradientInfo info,
+                                       Shader::GradientType type)
     : SWSpanBrush(spans, bitmap, color_filter, blend, 1.f),
       info_(std::move(info)),
-      type_(type) {}
+      type_(type),
+      paint_alpha_(paint_alpha) {
+  if (info_.gradientFlags) {
+    for (auto& color : info_.colors) {
+      color = Premultiply(color);
+    }
+  }
+}
+
+PMColor GradientColorBrush::PackGradientColor(Color4f color) const {
+  if (!info_.gradientFlags) {
+    color = Premultiply(color);
+  }
+  // Clamp extended RGB to [0, A] after interpolation, as in the GPU shader.
+  const Color4f nonnegative = Color4f::Max(color, Color4f{0.f});
+  const Color4f clamped = Color4f::Min(nonnegative, Color4f{color.a});
+  return Color4fToColor(clamped * paint_alpha_);
+}
 
 namespace {
 
@@ -275,7 +300,8 @@ Color4f GradientColorBrush::LerpColor(float current) {
       end = step * (i + 1);
     }
 
-    if (current >= start && current <= end) {
+    // At a repeated interior stop, the interval to the right owns the boundary.
+    if (current >= start && current < end) {
       start_index = i;
       end_index = i + 1;
       break;
@@ -302,9 +328,11 @@ class LinearGradientColorBrush : public GradientColorBrush {
  public:
   LinearGradientColorBrush(std::vector<Span> const& spans, Bitmap* bitmap,
                            ColorFilter* color_filter, BlendMode blend,
-                           Shader::GradientInfo info, Shader::GradientType type,
+                           float paint_alpha, Shader::GradientInfo info,
+                           Shader::GradientType type,
                            const Matrix& device_to_local)
-      : GradientColorBrush(spans, bitmap, color_filter, blend, info, type),
+      : GradientColorBrush(spans, bitmap, color_filter, blend, paint_alpha,
+                           info, type),
         points_to_unit_(PointsToUnit(info_, type_) * device_to_local) {}
   ~LinearGradientColorBrush() override = default;
 
@@ -314,9 +342,7 @@ class LinearGradientColorBrush : public GradientColorBrush {
 
     Vec2 src{x + 0.5f, y + 0.5f};
     Color4f c = LerpColor(MapPoint(src, points_to_unit_).x);
-    Color color = Color4fToColor(c);
-    color = ColorToPMColor(color);
-    return color;
+    return PackGradientColor(c);
   }
 
  private:
@@ -327,9 +353,11 @@ class SweepGradientColorBrush : public GradientColorBrush {
  public:
   SweepGradientColorBrush(std::vector<Span> const& spans, Bitmap* bitmap,
                           ColorFilter* color_filter, BlendMode blend,
-                          Shader::GradientInfo info, Shader::GradientType type,
+                          float paint_alpha, Shader::GradientInfo info,
+                          Shader::GradientType type,
                           const Matrix& device_to_local)
-      : GradientColorBrush(spans, bitmap, color_filter, blend, info, type),
+      : GradientColorBrush(spans, bitmap, color_filter, blend, paint_alpha,
+                           info, type),
         points_to_unit_(PointsToUnit(info_, type_) * device_to_local) {}
   ~SweepGradientColorBrush() override = default;
 
@@ -348,9 +376,7 @@ class SweepGradientColorBrush : public GradientColorBrush {
     constexpr static float k1Over2Pi = 0.1591549430918;
     float t = (angle * k1Over2Pi + 0.5 + bias) * scale;
     Color4f c = LerpColor(t);
-    Color color = Color4fToColor(c);
-    color = ColorToPMColor(color);
-    return color;
+    return PackGradientColor(c);
   }
 
  private:
@@ -361,9 +387,11 @@ class RadialGradientColorBrush : public GradientColorBrush {
  public:
   RadialGradientColorBrush(std::vector<Span> const& spans, Bitmap* bitmap,
                            ColorFilter* color_filter, BlendMode blend,
-                           Shader::GradientInfo info, Shader::GradientType type,
+                           float paint_alpha, Shader::GradientInfo info,
+                           Shader::GradientType type,
                            const Matrix& device_to_local)
-      : GradientColorBrush(spans, bitmap, color_filter, blend, info, type),
+      : GradientColorBrush(spans, bitmap, color_filter, blend, paint_alpha,
+                           info, type),
         points_to_unit_(PointsToUnit(info_, type_) * device_to_local) {}
   ~RadialGradientColorBrush() override = default;
 
@@ -373,9 +401,7 @@ class RadialGradientColorBrush : public GradientColorBrush {
 
     Vec2 src{x + 0.5f, y + 0.5f};
     Color4f c = LerpColor(MapPoint(src, points_to_unit_).Length());
-    Color color = Color4fToColor(c);
-    color = ColorToPMColor(color);
-    return color;
+    return PackGradientColor(c);
   }
 
  private:
@@ -386,10 +412,11 @@ class ConicalGradientColorBrush : public GradientColorBrush {
  public:
   ConicalGradientColorBrush(std::vector<Span> const& spans, Bitmap* bitmap,
                             ColorFilter* color_filter, BlendMode blend,
-                            Shader::GradientInfo info,
+                            float paint_alpha, Shader::GradientInfo info,
                             Shader::GradientType type,
                             const Matrix& device_to_local)
-      : GradientColorBrush(spans, bitmap, color_filter, blend, info, type),
+      : GradientColorBrush(spans, bitmap, color_filter, blend, paint_alpha,
+                           info, type),
         device_to_local_(device_to_local),
         points_to_unit_(PointsToUnit(info_, type_)) {}
   ~ConicalGradientColorBrush() override = default;
@@ -399,9 +426,7 @@ class ConicalGradientColorBrush : public GradientColorBrush {
     SKITY_TRACE_EVENT(ConicalGradientColorBrush_CalculateColor);
 
     Color4f c = CalculateConical(x, y);
-    Color color = Color4fToColor(c);
-    color = ColorToPMColor(color);
-    return color;
+    return PackGradientColor(c);
   }
 
   void OnPreBrush() override {
@@ -531,24 +556,28 @@ class ConicalGradientColorBrush : public GradientColorBrush {
 
 std::unique_ptr<GradientColorBrush> GradientColorBrush::MakeGradientColorBrush(
     std::vector<Span> const& spans, Bitmap* bitmap, ColorFilter* color_filter,
-    BlendMode blend, Shader::GradientInfo info, Shader::GradientType type,
-    const Matrix& device_to_local) {
+    BlendMode blend, float paint_alpha, Shader::GradientInfo info,
+    Shader::GradientType type, const Matrix& device_to_local) {
   switch (type) {
     case Shader::GradientType::kLinear:
       return std::make_unique<LinearGradientColorBrush>(
-          spans, bitmap, color_filter, blend, info, type, device_to_local);
+          spans, bitmap, color_filter, blend, paint_alpha, info, type,
+          device_to_local);
     case Shader::GradientType::kRadial:
       return std::make_unique<RadialGradientColorBrush>(
-          spans, bitmap, color_filter, blend, info, type, device_to_local);
+          spans, bitmap, color_filter, blend, paint_alpha, info, type,
+          device_to_local);
     case Shader::GradientType::kConical:
       return std::make_unique<ConicalGradientColorBrush>(
-          spans, bitmap, color_filter, blend, info, type, device_to_local);
+          spans, bitmap, color_filter, blend, paint_alpha, info, type,
+          device_to_local);
     case Shader::GradientType::kSweep:
       return std::make_unique<SweepGradientColorBrush>(
-          spans, bitmap, color_filter, blend, info, type, device_to_local);
+          spans, bitmap, color_filter, blend, paint_alpha, info, type,
+          device_to_local);
     default:
-      return std::make_unique<GradientColorBrush>(spans, bitmap, color_filter,
-                                                  blend, info, type);
+      return std::make_unique<GradientColorBrush>(
+          spans, bitmap, color_filter, blend, paint_alpha, info, type);
   }
 }
 

@@ -91,12 +91,13 @@ class GradientColorBrush : public SWSpanBrush {
  public:
   static std::unique_ptr<GradientColorBrush> MakeGradientColorBrush(
       std::vector<Span> const& spans, Bitmap* bitmap, ColorFilter* color_filter,
-      BlendMode blend, Shader::GradientInfo info, Shader::GradientType type,
-      const Matrix& device_to_local);
+      BlendMode blend, float paint_alpha, Shader::GradientInfo info,
+      Shader::GradientType type, const Matrix& device_to_local);
 
   GradientColorBrush(std::vector<Span> const& spans, Bitmap* bitmap,
                      ColorFilter* color_filter, BlendMode blend,
-                     Shader::GradientInfo info, Shader::GradientType type);
+                     float paint_alpha, Shader::GradientInfo info,
+                     Shader::GradientType type);
 
   ~GradientColorBrush() override = default;
 
@@ -104,9 +105,13 @@ class GradientColorBrush : public SWSpanBrush {
   Color CalculateColor(int32_t x, int32_t y) override;
 
   Color4f LerpColor(float current);
+  PMColor PackGradientColor(Color4f color) const;
 
   Shader::GradientInfo info_ = {};
   Shader::GradientType type_ = {};
+
+ private:
+  float paint_alpha_;
 };
 
 class PixmapBrush : public SWSpanBrush {

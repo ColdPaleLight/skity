@@ -158,7 +158,8 @@ class GradientSpanTest : public skity::GradientColorBrush {
   GradientSpanTest(skity::Shader::GradientInfo info,
                    skity::Shader::GradientType type)
       : GradientColorBrush(std::vector<skity::Span>{}, nullptr, nullptr,
-                           skity::BlendMode::kDefault, std::move(info), type) {}
+                           skity::BlendMode::kDefault, 1.f, std::move(info),
+                           type) {}
 
   ~GradientSpanTest() override = default;
 
